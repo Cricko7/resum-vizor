@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: resume-visitor-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resume_visitor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_visitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resume-visitor-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "8080:8080"
+    environment:
+      APP_PORT: 8080
+      APP_BASE_URL: http://localhost:8080
+      RUST_LOG: info,tower_http=info
+      HR_API_RATE_LIMIT_REQUESTS: 60
+      HR_API_RATE_LIMIT_WINDOW_SECONDS: 60
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/resume_visitor
+      DATABASE_MAX_CONNECTIONS: 10
+      DIPLOMA_HASH_KEY: replace-with-a-long-random-secret
+      JWT_SECRET: replace-with-another-long-random-secret
+      JWT_TTL_MINUTES: 60
+      UNIVERSITY_SIGNING_KEY: replace-with-signing-secret
+      DIPLOMA_LINK_TTL_MINUTES: 30
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: resume-visitor-prometheus
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: resume-visitor-grafana
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  postgres_data:
+  grafana_data:
