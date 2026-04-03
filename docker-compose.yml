@@ -1,20 +1,20 @@
-version: "3.9"
+﻿version: "3.9"
 
 services:
   postgres:
     image: postgres:16
-    container_name: resume-visitor-postgres
+    container_name: resume-vizor-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: resume_visitor
+      POSTGRES_DB: resume_vizor
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_visitor"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_vizor"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: resume-visitor-backend
+    container_name: resume-vizor-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -42,7 +42,7 @@ services:
       RUST_LOG: info,tower_http=info
       HR_API_RATE_LIMIT_REQUESTS: 60
       HR_API_RATE_LIMIT_WINDOW_SECONDS: 60
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/resume_visitor
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/resume_vizor
       DATABASE_MAX_CONNECTIONS: 10
       DIPLOMA_HASH_KEY: replace-with-a-long-random-secret
       JWT_SECRET: replace-with-another-long-random-secret
@@ -52,7 +52,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: resume-visitor-prometheus
+    container_name: resume-vizor-prometheus
     restart: unless-stopped
     depends_on:
       backend:
@@ -64,7 +64,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: resume-visitor-grafana
+    container_name: resume-vizor-grafana
     restart: unless-stopped
     depends_on:
       prometheus:
@@ -83,3 +83,4 @@ services:
 volumes:
   postgres_data:
   grafana_data:
+

@@ -1,4 +1,4 @@
-{
+﻿{
   "annotations": {
     "list": [
       {
@@ -309,7 +309,7 @@
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
-    "resume-visitor",
+    "resume-vizor",
     "backend",
     "prometheus"
   ],
@@ -322,8 +322,9 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Resume Visitor Overview",
-  "uid": "resume-visitor-overview",
+  "title": "Resume Vizor Overview",
+  "uid": "resume-vizor-overview",
   "version": 1,
   "weekStart": ""
 }
+

@@ -1,4 +1,4 @@
-# Resume Visitor Backend
+# Resume Vizor Backend
 
 Бэкенд на `Rust + Axum` для платформы-посредника проверки дипломов.
 
@@ -291,7 +291,7 @@ cargo --version
 | `RUST_LOG` | нет | `info,tower_http=info` | уровень логирования |
 | `HR_API_RATE_LIMIT_REQUESTS` | да | `60` | сколько запросов разрешено в automation endpoint за окно |
 | `HR_API_RATE_LIMIT_WINDOW_SECONDS` | да | `60` | длина окна rate limit |
-| `DATABASE_URL` | да | `postgres://postgres:postgres@localhost:5432/resume_visitor` | строка подключения к PostgreSQL |
+| `DATABASE_URL` | да | `postgres://postgres:postgres@localhost:5432/resume_vizor` | строка подключения к PostgreSQL |
 | `DATABASE_MAX_CONNECTIONS` | да | `10` | размер пула подключений |
 | `DIPLOMA_HASH_KEY` | да | `replace-with-a-long-random-secret` | секрет для keyed hashing полей диплома |
 | `JWT_SECRET` | да | `replace-with-another-long-random-secret` | секрет для access token и share token |
@@ -307,7 +307,7 @@ APP_BASE_URL=http://localhost:8080
 RUST_LOG=info,tower_http=info
 HR_API_RATE_LIMIT_REQUESTS=60
 HR_API_RATE_LIMIT_WINDOW_SECONDS=60
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/resume_visitor
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/resume_vizor
 DATABASE_MAX_CONNECTIONS=10
 DIPLOMA_HASH_KEY=replace-with-a-long-random-secret
 JWT_SECRET=replace-with-another-long-random-secret
@@ -381,10 +381,10 @@ docker compose down -v
 Пример через Docker:
 
 ```powershell
-docker run --name resume-visitor-pg `
+docker run --name resume-vizor-pg `
   -e POSTGRES_USER=postgres `
   -e POSTGRES_PASSWORD=postgres `
-  -e POSTGRES_DB=resume_visitor `
+-e POSTGRES_DB=resume_vizor `
   -p 5432:5432 `
   -d postgres:16
 ```
@@ -523,7 +523,7 @@ http://localhost:8080
 ```json
 {
   "status": "ok",
-  "service": "resume-visitor-backend"
+  "service": "resume-vizor-backend"
 }
 ```
 
@@ -540,7 +540,7 @@ Liveness probe.
 ```json
 {
   "status": "ok",
-  "service": "resume-visitor-backend"
+  "service": "resume-vizor-backend"
 }
 ```
 
@@ -558,7 +558,7 @@ Readiness probe.
 ```json
 {
   "status": "ready",
-  "service": "resume-visitor-backend",
+  "service": "resume-vizor-backend",
   "checks": {
     "database": "up"
   }
@@ -574,7 +574,7 @@ Readiness probe.
 ```json
 {
   "status": "not_ready",
-  "service": "resume-visitor-backend",
+  "service": "resume-vizor-backend",
   "checks": {
     "database": "down"
   }
@@ -1098,7 +1098,7 @@ GET /metrics
 - [prometheus.yml](/D:/Programming/Resume-visitor/prometheus/prometheus.yml)
 - [datasource.yml](/D:/Programming/Resume-visitor/grafana/provisioning/datasources/datasource.yml)
 - [dashboards.yml](/D:/Programming/Resume-visitor/grafana/provisioning/dashboards/dashboards.yml)
-- [resume-visitor-overview.json](/D:/Programming/Resume-visitor/grafana/dashboards/resume-visitor-overview.json)
+- [resume-vizor-overview.json](/D:/Programming/Resume-visitor/grafana/dashboards/resume-vizor-overview.json)
 
 После запуска `docker compose up --build` доступны:
 
@@ -1109,14 +1109,14 @@ GET /metrics
 Grafana уже автоматически:
 
 - подключена к Prometheus datasource
-- загружает dashboard `Resume Visitor Overview`
+- загружает dashboard `Resume Vizor Overview`
 
 Что проверить после старта:
 
 1. открыть `http://localhost:8080/metrics`
 2. открыть `http://localhost:9090/targets`
-3. убедиться, что job `resume-visitor-backend` имеет статус `UP`
-4. открыть Grafana и найти dashboard `Resume Visitor Overview`
+3. убедиться, что job `resume-vizor-backend` имеет статус `UP`
+4. открыть Grafana и найти dashboard `Resume Vizor Overview`
 
 ### 12.4 Docker / Compose рекомендации
 
@@ -1130,7 +1130,7 @@ Grafana уже автоматически:
 
 ```yaml
 scrape_configs:
-  - job_name: "resume-visitor-backend"
+  - job_name: "resume-vizor-backend"
     metrics_path: /metrics
     static_configs:
       - targets:

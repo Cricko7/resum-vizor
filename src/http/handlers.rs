@@ -1,4 +1,4 @@
-use axum::{Json, extract::State};
+﻿use axum::{Json, extract::State};
 use serde::Serialize;
 
 use crate::{
@@ -16,7 +16,7 @@ pub struct HealthResponse {
 pub async fn health_check() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok",
-        service: "resume-visitor-backend",
+        service: "resume-vizor-backend",
     })
 }
 
@@ -27,3 +27,4 @@ pub async fn register_diploma(
     let diploma = state.diploma_service.register_diploma(payload).await?;
     Ok(Json(diploma.into()))
 }
+

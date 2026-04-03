@@ -1,11 +1,12 @@
-apiVersion: 1
+﻿apiVersion: 1
 
 providers:
-  - name: "Resume Visitor Dashboards"
+  - name: "Resume Vizor Dashboards"
     orgId: 1
-    folder: "Resume Visitor"
+    folder: "Resume Vizor"
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     options:
       path: /var/lib/grafana/dashboards
+

@@ -1,4 +1,4 @@
-use axum::{
+﻿use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     Json,
     extract::{Path, State},
@@ -34,7 +34,7 @@ pub struct ReadinessChecks {
 pub async fn health_check() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok",
-        service: "resume-visitor-backend",
+        service: "resume-vizor-backend",
     })
 }
 
@@ -47,7 +47,7 @@ pub async fn readiness_check(State(state): State<AppState>) -> Response {
 
     let body = Json(ReadinessResponse {
         status: if is_ready { "ready" } else { "not_ready" },
-        service: "resume-visitor-backend",
+        service: "resume-vizor-backend",
         checks: ReadinessChecks {
             database: if is_ready { "up" } else { "down" },
         },
@@ -77,3 +77,4 @@ pub async fn public_diploma_access(
     let diploma = state.diploma_service.resolve_public_diploma_view(&token).await?;
     Ok(Json(diploma))
 }
+
