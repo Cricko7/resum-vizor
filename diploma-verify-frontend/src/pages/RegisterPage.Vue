@@ -51,26 +51,54 @@
             />
           </div>
           
-          <div v-if="selectedRole === 'student'" class="form-group">
-            <input
-              type="text"
-              v-model="form.student_number"
-              placeholder="Номер студенческого билета"
-              required
-              :disabled="loading"
-            />
-          </div>
+          <!-- Поля для студента -->
+          <template v-if="selectedRole === 'student'">
+            <div class="form-group">
+              <input
+                type="text"
+                v-model="form.student_number"
+                placeholder="Номер студенческого билета"
+                required
+                :disabled="loading"
+              />
+            </div>
+          </template>
           
-          <div v-if="selectedRole === 'university'" class="form-group">
-            <input
-              type="text"
-              v-model="form.university_code"
-              placeholder="Код ВУЗа"
-              required
-              :disabled="loading"
-            />
-            <div class="hint">Пример: UNI-001</div>
-          </div>
+          <!-- Поля для ВУЗа (исправлено) -->
+          <template v-if="selectedRole === 'university'">
+            <div class="form-group">
+              <input
+                type="text"
+                v-model="form.university_id"
+                placeholder="ID ВУЗа (UUID)"
+                :disabled="loading"
+              />
+              <div class="hint">Оставьте пустым для автоматической генерации</div>
+            </div>
+            
+            <div class="form-group">
+              <input
+                type="text"
+                v-model="form.university_code"
+                placeholder="Код ВУЗа *"
+                required
+                :disabled="loading"
+              />
+              <div class="hint">Пример: UNI-001</div>
+            </div>
+          </template>
+          
+          <!-- Поля для HR -->
+          <template v-if="selectedRole === 'hr'">
+            <div class="form-group">
+              <input
+                type="text"
+                v-model="form.company_name"
+                placeholder="Название компании"
+                :disabled="loading"
+              />
+            </div>
+          </template>
           
           <div v-if="error" class="error-message">
             {{ error }}
@@ -109,8 +137,9 @@ const form = ref({
   password: '',
   full_name: '',
   student_number: '',
+  university_id: '',
   university_code: '',
-  university_id: ''
+  company_name: ''
 })
 const loading = ref(false)
 const error = ref('')
@@ -119,9 +148,29 @@ const handleRegister = async () => {
   loading.value = true
   error.value = ''
   
-  const registerData = {
-    ...form.value,
+  // Подготавливаем данные в зависимости от роли
+  let registerData = {
+    email: form.value.email,
+    password: form.value.password,
+    full_name: form.value.full_name,
     role: selectedRole.value
+  }
+  
+  if (selectedRole.value === 'student') {
+    registerData.student_number = form.value.student_number
+    registerData.university_id = null
+    registerData.university_code = null
+  } 
+  else if (selectedRole.value === 'university') {
+    // Для ВУЗа: если university_id пустой, отправляем null (бэкенд сгенерирует сам)
+    registerData.university_id = form.value.university_id || null
+    registerData.university_code = form.value.university_code
+    registerData.student_number = null
+  } 
+  else if (selectedRole.value === 'hr') {
+    registerData.university_id = null
+    registerData.university_code = null
+    registerData.student_number = null
   }
   
   const result = await authStore.register(registerData)
@@ -129,7 +178,6 @@ const handleRegister = async () => {
   loading.value = false
   
   if (result.success) {
-    // Редирект в зависимости от роли
     const role = result.user.role
     if (role === 'university') {
       router.push('/university/dashboard')
@@ -226,7 +274,7 @@ h2 {
   margin-bottom: 20px;
 }
 
-input {
+.form-group input {
   width: 100%;
   padding: 12px;
   border: 1px solid #ddd;
@@ -236,12 +284,12 @@ input {
   transition: border-color 0.3s;
 }
 
-input:focus {
+.form-group input:focus {
   outline: none;
   border-color: #667eea;
 }
 
-input:disabled {
+.form-group input:disabled {
   background: #f5f5f5;
 }
 

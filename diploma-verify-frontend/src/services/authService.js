@@ -23,7 +23,7 @@ export const authService = {
       full_name: data.full_name,
       student_number: null,
       role: 'university',
-      university_id: data.university_id || null,
+      university_id: data.university_id || null,  // null = авто-генерация
       university_code: data.university_code
     })
     return response.data
