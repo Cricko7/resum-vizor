@@ -5,6 +5,7 @@
         <div class="logo">
           <span class="icon">✓</span>
           <h2>Resume Vizor</h2>
+          <p class="subtitle">Вход в систему</p>
         </div>
         
         <form @submit.prevent="handleLogin">
@@ -14,6 +15,7 @@
               v-model="email"
               placeholder="Email"
               required
+              :disabled="loading"
             />
           </div>
           
@@ -23,7 +25,12 @@
               v-model="password"
               placeholder="Пароль"
               required
+              :disabled="loading"
             />
+          </div>
+          
+          <div v-if="error" class="error-message">
+            {{ error }}
           </div>
           
           <button type="submit" :disabled="loading">
@@ -42,21 +49,39 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
+const error = ref('')
 
 const handleLogin = async () => {
   loading.value = true
+  error.value = ''
   
-  // Имитация запроса
-  setTimeout(() => {
-    loading.value = false
-    alert(`Демо-вход: ${email.value}`)
-    // router.push('/')
-  }, 1000)
+  const result = await authStore.login(email.value, password.value)
+  
+  loading.value = false
+  
+  if (result.success) {
+    // Редирект в зависимости от роли
+    const role = result.user.role
+    if (role === 'university') {
+      router.push('/university/dashboard')
+    } else if (role === 'student') {
+      router.push('/student/dashboard')
+    } else if (role === 'hr') {
+      router.push('/hr/verify')
+    } else {
+      router.push('/')
+    }
+  } else {
+    error.value = result.error
+  }
 }
 </script>
 
@@ -104,6 +129,12 @@ h2 {
   color: #333;
 }
 
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -115,11 +146,16 @@ input {
   border-radius: 8px;
   font-size: 16px;
   box-sizing: border-box;
+  transition: border-color 0.3s;
 }
 
 input:focus {
   outline: none;
   border-color: #667eea;
+}
+
+input:disabled {
+  background: #f5f5f5;
 }
 
 button {
@@ -143,6 +179,16 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
 .register-link {
   text-align: center;
   margin-top: 20px;
@@ -152,5 +198,9 @@ button:disabled {
 .register-link a {
   color: #667eea;
   text-decoration: none;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
 }
 </style>

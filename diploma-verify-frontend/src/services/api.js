@@ -10,7 +10,7 @@ const api = axios.create({
   }
 })
 
-// Request interceptor
+// Перехватчик запроса — добавляем токен
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
@@ -18,7 +18,7 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // Добавляем роль пользователя если есть
+    // Добавляем роль для role-aware endpoints
     const role = localStorage.getItem('user_role')
     if (role) {
       config.headers.role = role
@@ -29,13 +29,14 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor
+// Перехватчик ответа — обработка ошибок
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user_role')
+      localStorage.removeItem('user')
       window.location.href = '/login'
     }
     return Promise.reject(error)

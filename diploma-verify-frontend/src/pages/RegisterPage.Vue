@@ -5,6 +5,7 @@
         <div class="logo">
           <span class="icon">📝</span>
           <h2>Регистрация</h2>
+          <p class="subtitle">Создайте аккаунт</p>
         </div>
         
         <div class="role-tabs">
@@ -13,6 +14,7 @@
             :key="role.value"
             :class="{ active: selectedRole === role.value }"
             @click="selectedRole = role.value"
+            :disabled="loading"
           >
             {{ role.label }}
           </button>
@@ -25,6 +27,7 @@
               v-model="form.email"
               placeholder="Email"
               required
+              :disabled="loading"
             />
           </div>
           
@@ -32,8 +35,9 @@
             <input
               type="password"
               v-model="form.password"
-              placeholder="Пароль"
+              placeholder="Пароль (минимум 6 символов)"
               required
+              :disabled="loading"
             />
           </div>
           
@@ -43,6 +47,7 @@
               v-model="form.full_name"
               placeholder="Полное имя"
               required
+              :disabled="loading"
             />
           </div>
           
@@ -52,6 +57,7 @@
               v-model="form.student_number"
               placeholder="Номер студенческого билета"
               required
+              :disabled="loading"
             />
           </div>
           
@@ -61,7 +67,13 @@
               v-model="form.university_code"
               placeholder="Код ВУЗа"
               required
+              :disabled="loading"
             />
+            <div class="hint">Пример: UNI-001</div>
+          </div>
+          
+          <div v-if="error" class="error-message">
+            {{ error }}
           </div>
           
           <button type="submit" :disabled="loading">
@@ -80,8 +92,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const roles = [
   { value: 'student', label: 'Студент' },
@@ -95,18 +109,38 @@ const form = ref({
   password: '',
   full_name: '',
   student_number: '',
-  university_code: ''
+  university_code: '',
+  university_id: ''
 })
 const loading = ref(false)
+const error = ref('')
 
 const handleRegister = async () => {
   loading.value = true
+  error.value = ''
   
-  setTimeout(() => {
-    loading.value = false
-    alert(`Демо-регистрация как ${selectedRole.value}`)
-    router.push('/login')
-  }, 1000)
+  const registerData = {
+    ...form.value,
+    role: selectedRole.value
+  }
+  
+  const result = await authStore.register(registerData)
+  
+  loading.value = false
+  
+  if (result.success) {
+    // Редирект в зависимости от роли
+    const role = result.user.role
+    if (role === 'university') {
+      router.push('/university/dashboard')
+    } else if (role === 'student') {
+      router.push('/student/dashboard')
+    } else if (role === 'hr') {
+      router.push('/hr/verify')
+    }
+  } else {
+    error.value = result.error
+  }
 }
 </script>
 
@@ -155,6 +189,12 @@ h2 {
   color: #333;
 }
 
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
 .role-tabs {
   display: flex;
   gap: 10px;
@@ -177,6 +217,11 @@ h2 {
   border-color: transparent;
 }
 
+.role-tabs button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -188,11 +233,22 @@ input {
   border-radius: 8px;
   font-size: 16px;
   box-sizing: border-box;
+  transition: border-color 0.3s;
 }
 
 input:focus {
   outline: none;
   border-color: #667eea;
+}
+
+input:disabled {
+  background: #f5f5f5;
+}
+
+.hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 5px;
 }
 
 button[type="submit"] {
@@ -216,6 +272,16 @@ button[type="submit"]:disabled {
   cursor: not-allowed;
 }
 
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
 .login-link {
   text-align: center;
   margin-top: 20px;
@@ -225,5 +291,9 @@ button[type="submit"]:disabled {
 .login-link a {
   color: #667eea;
   text-decoration: none;
+}
+
+.login-link a:hover {
+  text-decoration: underline;
 }
 </style>
