@@ -14,7 +14,7 @@ pub use router::create_router;
 use crate::{
     application::{
         ports::{HealthChecker, JwtProvider},
-        services::{AtsService, AuthService, DiplomaService},
+        services::{AtsService, AuthService, DiplomaService, QrService},
     },
     config::Settings,
     infrastructure::rate_limit::HrRateLimiter,
@@ -24,6 +24,7 @@ use crate::{
 pub struct AppState {
     pub settings: Settings,
     pub diploma_service: Arc<DiplomaService>,
+    pub qr_service: Arc<QrService>,
     pub ats_service: Arc<AtsService>,
     pub auth_service: Arc<AuthService>,
     pub jwt_provider: Arc<dyn JwtProvider>,
@@ -35,6 +36,7 @@ impl AppState {
     pub fn new(
         settings: Settings,
         diploma_service: Arc<DiplomaService>,
+        qr_service: Arc<QrService>,
         ats_service: Arc<AtsService>,
         auth_service: Arc<AuthService>,
         jwt_provider: Arc<dyn JwtProvider>,
@@ -44,6 +46,7 @@ impl AppState {
         Self {
             settings,
             diploma_service,
+            qr_service,
             ats_service,
             auth_service,
             jwt_provider,

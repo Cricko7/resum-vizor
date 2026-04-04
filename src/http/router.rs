@@ -28,6 +28,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/profile", get(student::profile))
         .route("/search", post(student::search_my_diplomas))
         .route("/diplomas/{diploma_id}/share-link", post(student::generate_share_link))
+        .route(
+            "/diplomas/{diploma_id}/qr",
+            post(student::create_or_get_qr)
+                .get(student::get_qr)
+                .delete(student::delete_qr),
+        )
+        .route("/diplomas/{diploma_id}/qr/content", get(student::get_qr_content))
         .layer(middleware::from_fn_with_state(state.clone(), require_student_role));
 
     let hr_routes = Router::new()

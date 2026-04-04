@@ -21,6 +21,10 @@ pub enum AppError {
     Forbidden(String),
     #[error("rate limit exceeded")]
     RateLimited,
+    #[error("service unavailable: {0}")]
+    ServiceUnavailable(String),
+    #[error("upstream service error: {0}")]
+    Upstream(String),
     #[error("internal server error")]
     Internal,
 }
@@ -40,6 +44,8 @@ impl IntoResponse for AppError {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Self::Upstream(_) => StatusCode::BAD_GATEWAY,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -50,6 +56,8 @@ impl IntoResponse for AppError {
             StatusCode::UNAUTHORIZED => "unauthorized",
             StatusCode::FORBIDDEN => "forbidden",
             StatusCode::TOO_MANY_REQUESTS => "rate_limited",
+            StatusCode::SERVICE_UNAVAILABLE => "service_unavailable",
+            StatusCode::BAD_GATEWAY => "upstream_error",
             _ => "internal_error",
         };
 

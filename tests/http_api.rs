@@ -1,5 +1,12 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
+use async_trait::async_trait;
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -12,10 +19,15 @@ use uuid::Uuid;
 
 use resume_vizor::{
     application::{
-        ports::{AppRepository, HealthChecker, JwtProvider},
-        services::{AtsService, AuthService, DiplomaService},
+        ports::{AppRepository, HealthChecker, JwtProvider, QrGateway},
+        services::{AtsService, AuthService, DiplomaService, QrService},
     },
     config::{DatabaseSettings, SecuritySettings, ServerSettings, Settings},
+    domain::qr::{
+        CreateQrJobPayload, ExternalQrJob, ExternalQrMetadata, QrBinaryContent, QrCodeStatus,
+        QrImageFormat,
+    },
+    error::AppError,
     http::{AppState, create_router},
     infrastructure::{
         api_keys::Blake3AtsKeyManager,
@@ -51,6 +63,7 @@ fn test_settings() -> Settings {
             max_connections: 10,
         },
         redis: None,
+        qr: None,
         security: SecuritySettings {
             diploma_hash_key: secret("hash-secret"),
             jwt_secret: secret("jwt-secret"),
@@ -62,7 +75,62 @@ fn test_settings() -> Settings {
     }
 }
 
+#[derive(Clone, Default)]
+struct StubQrGateway {
+    content_requests: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl QrGateway for StubQrGateway {
+    async fn create_job(&self, _payload: CreateQrJobPayload) -> Result<ExternalQrJob, AppError> {
+        Ok(ExternalQrJob {
+            job_id: "job-1".to_string(),
+            status: QrCodeStatus::Ready,
+            qr_id: Some("qr-1".to_string()),
+            error: None,
+        })
+    }
+
+    async fn get_job(&self, _job_id: &str) -> Result<ExternalQrJob, AppError> {
+        Ok(ExternalQrJob {
+            job_id: "job-1".to_string(),
+            status: QrCodeStatus::Ready,
+            qr_id: Some("qr-1".to_string()),
+            error: None,
+        })
+    }
+
+    async fn get_qr(&self, _qr_id: &str) -> Result<ExternalQrMetadata, AppError> {
+        Ok(ExternalQrMetadata {
+            qr_id: "qr-1".to_string(),
+            external_id: "external-1".to_string(),
+            status: QrCodeStatus::Ready,
+            format: QrImageFormat::Png,
+            size: 512,
+            expires_at: Some(chrono::Utc::now() + chrono::Duration::minutes(30)),
+            download_url: Some("https://qr.example.test/api/v1/qr/qr-1/content".to_string()),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    async fn get_qr_content(&self, _qr_id: &str) -> Result<QrBinaryContent, AppError> {
+        self.content_requests.fetch_add(1, Ordering::SeqCst);
+        Ok(QrBinaryContent {
+            content_type: "image/png".to_string(),
+            bytes: vec![137, 80, 78, 71],
+        })
+    }
+
+    async fn delete_qr(&self, _qr_id: &str) -> Result<(), AppError> {
+        Ok(())
+    }
+}
+
 fn build_app() -> Router {
+    build_app_with_qr_gateway(Arc::new(StubQrGateway::default()))
+}
+
+fn build_app_with_qr_gateway(qr_gateway: Arc<dyn QrGateway>) -> Router {
     let settings = test_settings();
     let repository = Arc::new(InMemoryAppRepository::default());
     let app_repository: Arc<dyn AppRepository> = repository.clone();
@@ -70,13 +138,22 @@ fn build_app() -> Router {
     let jwt_provider: Arc<dyn JwtProvider> =
         Arc::new(JwtService::new(&settings.security.jwt_secret, settings.security.jwt_ttl_minutes));
     let hr_rate_limiter: Arc<dyn HrRateLimiter> = Arc::new(SimpleRateLimiter::new());
+    let response_cache = Arc::new(InMemoryResponseCache::new());
     let diploma_service = Arc::new(DiplomaService::new(
         app_repository.clone(),
         Arc::new(Blake3DiplomaHasher::new(settings.security.diploma_hash_key.clone())),
         Arc::new(UniversityRecordSigner::new(&settings.security.university_signing_key)),
         jwt_provider.clone(),
-        Arc::new(InMemoryResponseCache::new()),
+        response_cache.clone(),
         Duration::from_secs(settings.server.request_cache_ttl_seconds),
+    ));
+    let qr_service = Arc::new(QrService::new(
+        app_repository.clone(),
+        diploma_service.clone(),
+        qr_gateway,
+        response_cache,
+        settings.server.base_url.clone(),
+        settings.security.diploma_link_ttl_minutes,
     ));
     let auth_service = Arc::new(AuthService::new(
         app_repository.clone(),
@@ -96,6 +173,7 @@ fn build_app() -> Router {
     create_router(AppState::new(
         settings,
         diploma_service,
+        qr_service,
         ats_service,
         auth_service,
         jwt_provider,
@@ -434,4 +512,237 @@ async fn combined_hr_api_key_can_call_ats_and_automation_endpoints() {
             .len(),
         1
     );
+}
+
+#[tokio::test]
+async fn student_can_create_read_and_delete_qr_via_backend() {
+    let app = build_app();
+    let university_id = Uuid::new_v4().to_string();
+
+    let (_, university_register) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        Some(json!({
+            "email": "uni-qr@example.com",
+            "password": "superpass",
+            "full_name": "Test University",
+            "student_number": null,
+            "role": "university",
+            "university_id": university_id,
+            "university_code": "UNI-QR"
+        })),
+        &[],
+    )
+    .await;
+    let university_auth = format!("Bearer {}", bearer_token(&university_register));
+
+    let (create_status, create_response) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/university/diplomas",
+        Some(json!({
+            "student_full_name": "Petr Sidorov",
+            "student_number": "ST-5555",
+            "student_birth_date": null,
+            "diploma_number": "DP-QR-0001",
+            "degree": "bachelor",
+            "program_name": "software engineering",
+            "graduation_date": "2026-06-30",
+            "honors": true
+        })),
+        &[("authorization", university_auth.as_str()), ("role", "university")],
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::OK);
+    let diploma_id = create_response["diploma_id"].as_str().unwrap().to_string();
+
+    let (_, student_register) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        Some(json!({
+            "email": "petr@example.com",
+            "password": "superpass",
+            "full_name": "Petr Sidorov",
+            "student_number": "ST-5555",
+            "role": "student",
+            "university_id": null,
+            "university_code": null
+        })),
+        &[],
+    )
+    .await;
+    let student_auth = format!("Bearer {}", bearer_token(&student_register));
+
+    let (claim_status, _) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/student/search",
+        Some(json!({
+            "diploma_number": "DP-QR-0001",
+            "student_full_name": "Petr Sidorov"
+        })),
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+    assert_eq!(claim_status, StatusCode::OK);
+
+    let qr_uri = format!("/api/v1/student/diplomas/{diploma_id}/qr");
+    let (qr_status, qr_response) = send_request(
+        &app,
+        Method::POST,
+        &qr_uri,
+        Some(json!({
+            "format": "png",
+            "size": 512,
+            "force_regenerate": false
+        })),
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+    assert_eq!(qr_status, StatusCode::OK);
+    assert_eq!(qr_response["status"], "ready");
+    assert!(qr_response["content_url"].as_str().is_some());
+
+    let (meta_status, meta_response) = send_request(
+        &app,
+        Method::GET,
+        &qr_uri,
+        None,
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+    assert_eq!(meta_status, StatusCode::OK);
+    assert_eq!(meta_response["status"], "ready");
+
+    let content_uri = format!("/api/v1/student/diplomas/{diploma_id}/qr/content");
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(content_uri)
+        .header("authorization", student_auth.as_str())
+        .header("role", "student")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(header::CONTENT_TYPE).unwrap(),
+        "image/png"
+    );
+
+    let (delete_status, delete_response) = send_request(
+        &app,
+        Method::DELETE,
+        &qr_uri,
+        None,
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+    assert_eq!(delete_status, StatusCode::OK);
+    assert_eq!(delete_response["deleted"], true);
+}
+
+#[tokio::test]
+async fn qr_content_is_cached_between_requests() {
+    let qr_gateway = Arc::new(StubQrGateway::default());
+    let app = build_app_with_qr_gateway(qr_gateway.clone());
+    let university_id = Uuid::new_v4().to_string();
+
+    let (_, university_register) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        Some(json!({
+            "email": "uni-cache@example.com",
+            "password": "superpass",
+            "full_name": "Test University",
+            "student_number": null,
+            "role": "university",
+            "university_id": university_id,
+            "university_code": "UNI-CACHE"
+        })),
+        &[],
+    )
+    .await;
+    let university_auth = format!("Bearer {}", bearer_token(&university_register));
+
+    let (create_status, create_response) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/university/diplomas",
+        Some(json!({
+            "student_full_name": "Cache Student",
+            "student_number": "ST-8080",
+            "student_birth_date": null,
+            "diploma_number": "DP-CACHE-1",
+            "degree": "bachelor",
+            "program_name": "systems",
+            "graduation_date": "2026-06-30",
+            "honors": false
+        })),
+        &[("authorization", university_auth.as_str()), ("role", "university")],
+    )
+    .await;
+    assert_eq!(create_status, StatusCode::OK);
+    let diploma_id = create_response["diploma_id"].as_str().unwrap().to_string();
+
+    let (_, student_register) = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        Some(json!({
+            "email": "cache-student@example.com",
+            "password": "superpass",
+            "full_name": "Cache Student",
+            "student_number": "ST-8080",
+            "role": "student",
+            "university_id": null,
+            "university_code": null
+        })),
+        &[],
+    )
+    .await;
+    let student_auth = format!("Bearer {}", bearer_token(&student_register));
+
+    let _ = send_request(
+        &app,
+        Method::POST,
+        "/api/v1/student/search",
+        Some(json!({
+            "diploma_number": "DP-CACHE-1",
+            "student_full_name": "Cache Student"
+        })),
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+
+    let qr_uri = format!("/api/v1/student/diplomas/{diploma_id}/qr");
+    let _ = send_request(
+        &app,
+        Method::POST,
+        &qr_uri,
+        Some(json!({
+            "format": "png",
+            "size": 512,
+            "force_regenerate": false
+        })),
+        &[("authorization", student_auth.as_str()), ("role", "student")],
+    )
+    .await;
+
+    let content_uri = format!("/api/v1/student/diplomas/{diploma_id}/qr/content");
+    for _ in 0..2 {
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(&content_uri)
+            .header("authorization", student_auth.as_str())
+            .header("role", "student")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    assert_eq!(qr_gateway.content_requests.load(Ordering::SeqCst), 1);
 }
