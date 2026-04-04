@@ -1,4 +1,4 @@
-﻿use resume_vizor::{app, config::Settings};
+use resume_vizor::{app, config::Settings};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
