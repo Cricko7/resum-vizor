@@ -4,5 +4,6 @@ pub mod cache;
 pub mod hashing;
 pub mod metrics;
 pub mod persistence;
+pub mod qr_client;
 pub mod rate_limit;
 pub mod signing;

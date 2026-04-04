@@ -5,7 +5,7 @@ use tokio::net::TcpListener;
 use tracing::info;
 
 use crate::{
-    application::services::{AtsService, AuthService, DiplomaService},
+    application::services::{AtsService, AuthService, DiplomaService, QrService},
     config::Settings,
     http::{AppState, create_router},
     infrastructure::{
@@ -14,6 +14,7 @@ use crate::{
         cache::{InMemoryResponseCache, RedisResponseCache, ResponseCache},
         hashing::Blake3DiplomaHasher,
         persistence::postgres::PostgresAppRepository,
+        qr_client::{DisabledQrGateway, HttpQrGateway},
         rate_limit::{HrRateLimiter, RedisRateLimiter, SimpleRateLimiter},
         signing::UniversityRecordSigner,
     },
@@ -66,13 +67,30 @@ pub async fn run(settings: Settings) -> anyhow::Result<()> {
         info!("configured response cache backend: {}", cache.backend_name());
         Arc::new(cache)
     };
+    let qr_gateway: Arc<dyn crate::application::ports::QrGateway> = if let Some(qr_settings) = &settings.qr
+    {
+        let gateway = HttpQrGateway::new(qr_settings)?;
+        info!("configured qr gateway backend: http");
+        Arc::new(gateway)
+    } else {
+        info!("configured qr gateway backend: disabled");
+        Arc::new(DisabledQrGateway)
+    };
     let diploma_service = Arc::new(DiplomaService::new(
         repository.clone(),
         Arc::new(hasher),
         signer,
         jwt_provider.clone(),
-        response_cache,
+        response_cache.clone(),
         request_cache_ttl,
+    ));
+    let qr_service = Arc::new(QrService::new(
+        repository.clone(),
+        diploma_service.clone(),
+        qr_gateway,
+        response_cache,
+        settings.server.base_url.clone(),
+        settings.security.diploma_link_ttl_minutes,
     ));
     let auth_service = Arc::new(AuthService::new(
         repository.clone(),
@@ -92,6 +110,7 @@ pub async fn run(settings: Settings) -> anyhow::Result<()> {
     let state = AppState::new(
         settings.clone(),
         diploma_service,
+        qr_service,
         ats_service,
         auth_service,
         jwt_provider,

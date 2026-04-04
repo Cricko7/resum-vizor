@@ -28,3 +28,5 @@ typed_id!(DiplomaId);
 typed_id!(CertificateId);
 typed_id!(UserId);
 typed_id!(AtsApiKeyId);
+typed_id!(QrCodeId);
+typed_id!(QrJobId);

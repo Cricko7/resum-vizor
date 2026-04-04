@@ -5,6 +5,7 @@ use crate::{
         ats::AtsApiKey,
         diploma::Diploma,
         ids::{AtsApiKeyId, CertificateId, DiplomaId, UniversityId, UserId},
+        qr::{CreateQrJobPayload, DiplomaQrCode, ExternalQrJob, ExternalQrMetadata, QrBinaryContent},
         user::User,
     },
     error::AppError,
@@ -49,9 +50,25 @@ pub trait AtsApiKeyRepository: Send + Sync {
     async fn update_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError>;
 }
 
-pub trait AppRepository: DiplomaRepository + UserRepository + AtsApiKeyRepository {}
+#[async_trait]
+pub trait DiplomaQrCodeRepository: Send + Sync {
+    async fn upsert_diploma_qr_code(&self, qr_code: DiplomaQrCode) -> Result<DiplomaQrCode, AppError>;
+    async fn find_diploma_qr_code_by_diploma_id(
+        &self,
+        diploma_id: DiplomaId,
+    ) -> Result<Option<DiplomaQrCode>, AppError>;
+    async fn delete_diploma_qr_code_by_diploma_id(&self, diploma_id: DiplomaId) -> Result<(), AppError>;
+}
 
-impl<T> AppRepository for T where T: DiplomaRepository + UserRepository + AtsApiKeyRepository + ?Sized {}
+pub trait AppRepository:
+    DiplomaRepository + UserRepository + AtsApiKeyRepository + DiplomaQrCodeRepository
+{
+}
+
+impl<T> AppRepository for T where
+    T: DiplomaRepository + UserRepository + AtsApiKeyRepository + DiplomaQrCodeRepository + ?Sized
+{
+}
 
 pub trait PasswordHasher: Send + Sync {
     fn hash_password(&self, password: &str) -> Result<String, AppError>;
@@ -84,6 +101,15 @@ pub trait AtsKeyManager: Send + Sync {
     fn generate_api_key(&self) -> Result<String, AppError>;
     fn hash_api_key(&self, api_key: &str) -> Result<String, AppError>;
     fn key_prefix(&self, api_key: &str) -> String;
+}
+
+#[async_trait]
+pub trait QrGateway: Send + Sync {
+    async fn create_job(&self, payload: CreateQrJobPayload) -> Result<ExternalQrJob, AppError>;
+    async fn get_job(&self, job_id: &str) -> Result<ExternalQrJob, AppError>;
+    async fn get_qr(&self, qr_id: &str) -> Result<ExternalQrMetadata, AppError>;
+    async fn get_qr_content(&self, qr_id: &str) -> Result<QrBinaryContent, AppError>;
+    async fn delete_qr(&self, qr_id: &str) -> Result<(), AppError>;
 }
 
 #[async_trait]

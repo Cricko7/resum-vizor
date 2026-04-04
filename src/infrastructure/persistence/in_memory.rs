@@ -4,11 +4,15 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 
 use crate::{
-    application::ports::{AtsApiKeyRepository, DiplomaRepository, HealthChecker, UserRepository},
+    application::ports::{
+        AtsApiKeyRepository, DiplomaQrCodeRepository, DiplomaRepository, HealthChecker,
+        UserRepository,
+    },
     domain::{
         ats::AtsApiKey,
         diploma::Diploma,
         ids::{AtsApiKeyId, CertificateId, DiplomaId, UserId},
+        qr::DiplomaQrCode,
         user::User,
     },
     error::AppError,
@@ -17,6 +21,7 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct InMemoryAppRepository {
     diplomas_by_id: Arc<RwLock<HashMap<String, Diploma>>>,
+    diploma_qr_codes_by_diploma_id: Arc<RwLock<HashMap<String, DiplomaQrCode>>>,
     users_by_id: Arc<RwLock<HashMap<String, User>>>,
     ats_api_keys_by_id: Arc<RwLock<HashMap<String, AtsApiKey>>>,
 }
@@ -198,6 +203,29 @@ impl AtsApiKeyRepository for InMemoryAppRepository {
         let mut storage = self.ats_api_keys_by_id.write().await;
         storage.insert(api_key.id.0.to_string(), api_key.clone());
         Ok(api_key)
+    }
+}
+
+#[async_trait]
+impl DiplomaQrCodeRepository for InMemoryAppRepository {
+    async fn upsert_diploma_qr_code(&self, qr_code: DiplomaQrCode) -> Result<DiplomaQrCode, AppError> {
+        let mut storage = self.diploma_qr_codes_by_diploma_id.write().await;
+        storage.insert(qr_code.diploma_id.0.to_string(), qr_code.clone());
+        Ok(qr_code)
+    }
+
+    async fn find_diploma_qr_code_by_diploma_id(
+        &self,
+        diploma_id: DiplomaId,
+    ) -> Result<Option<DiplomaQrCode>, AppError> {
+        let storage = self.diploma_qr_codes_by_diploma_id.read().await;
+        Ok(storage.get(&diploma_id.0.to_string()).cloned())
+    }
+
+    async fn delete_diploma_qr_code_by_diploma_id(&self, diploma_id: DiplomaId) -> Result<(), AppError> {
+        let mut storage = self.diploma_qr_codes_by_diploma_id.write().await;
+        storage.remove(&diploma_id.0.to_string());
+        Ok(())
     }
 }
 

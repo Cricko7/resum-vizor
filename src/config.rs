@@ -7,6 +7,7 @@ pub struct Settings {
     pub server: ServerSettings,
     pub database: DatabaseSettings,
     pub redis: Option<RedisSettings>,
+    pub qr: Option<QrServiceSettings>,
     pub security: SecuritySettings,
 }
 
@@ -45,6 +46,14 @@ pub struct RedisSettings {
     pub url: SecretString,
     pub rate_limit_prefix: String,
     pub cache_prefix: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct QrServiceSettings {
+    pub base_url: String,
+    pub api_key: SecretString,
+    pub connect_timeout_seconds: u64,
+    pub request_timeout_seconds: u64,
 }
 
 impl Settings {
@@ -108,6 +117,18 @@ impl Settings {
             .unwrap_or_else(|_| "resume_vizor:hr_rate_limit".to_string());
         let redis_cache_prefix = std::env::var("REDIS_CACHE_PREFIX")
             .unwrap_or_else(|_| "resume_vizor:request_cache".to_string());
+        let qr_service_base_url = std::env::var("QR_SERVICE_BASE_URL").ok();
+        let qr_service_api_key = std::env::var("QR_SERVICE_API_KEY")
+            .ok()
+            .map(|value| SecretString::new(value.into_boxed_str()));
+        let qr_service_connect_timeout_seconds = std::env::var("QR_SERVICE_CONNECT_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse::<u64>()
+            .context("QR_SERVICE_CONNECT_TIMEOUT_SECONDS must be a valid u64")?;
+        let qr_service_request_timeout_seconds = std::env::var("QR_SERVICE_REQUEST_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "10".to_string())
+            .parse::<u64>()
+            .context("QR_SERVICE_REQUEST_TIMEOUT_SECONDS must be a valid u64")?;
         let jwt_secret = std::env::var("JWT_SECRET")
             .map(|value| SecretString::new(value.into_boxed_str()))
             .map_err(|_| anyhow!("JWT_SECRET is required"))?;
@@ -180,6 +201,37 @@ impl Settings {
             return Err(anyhow!("REDIS_CACHE_PREFIX must not be empty"));
         }
 
+        let qr = match (qr_service_base_url, qr_service_api_key) {
+            (Some(base_url), Some(api_key)) => {
+                if base_url.trim().is_empty() {
+                    return Err(anyhow!("QR_SERVICE_BASE_URL must not be empty"));
+                }
+                if qr_service_connect_timeout_seconds == 0 {
+                    return Err(anyhow!(
+                        "QR_SERVICE_CONNECT_TIMEOUT_SECONDS must be greater than 0"
+                    ));
+                }
+                if qr_service_request_timeout_seconds == 0 {
+                    return Err(anyhow!(
+                        "QR_SERVICE_REQUEST_TIMEOUT_SECONDS must be greater than 0"
+                    ));
+                }
+
+                Some(QrServiceSettings {
+                    base_url,
+                    api_key,
+                    connect_timeout_seconds: qr_service_connect_timeout_seconds,
+                    request_timeout_seconds: qr_service_request_timeout_seconds,
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(anyhow!(
+                    "QR_SERVICE_BASE_URL and QR_SERVICE_API_KEY must be configured together"
+                ))
+            }
+        };
+
         if jwt_ttl_minutes <= 0 {
             return Err(anyhow!("JWT_TTL_MINUTES must be greater than 0"));
         }
@@ -210,6 +262,7 @@ impl Settings {
                 rate_limit_prefix: redis_rate_limit_prefix,
                 cache_prefix: redis_cache_prefix,
             }),
+            qr,
             security: SecuritySettings {
                 diploma_hash_key,
                 jwt_secret,

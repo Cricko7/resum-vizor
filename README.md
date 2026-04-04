@@ -9,6 +9,7 @@
 - автоматически подписывать записи дипломов цифровой подписью вуза
 - студенту находить и привязывать свои дипломы
 - студенту делиться временной ссылкой на диплом
+- студенту запрашивать QR-код на свой диплом через отдельный QR-микросервис
 - HR/ATS-системам проверять диплом через API
 - вузу аннулировать диплом и восстанавливать его обратно
 
@@ -22,7 +23,7 @@
 - `Redis`
 
 `in-memory` persistence сохранен для тестов и быстрых unit/integration-style сценариев.
-`Redis` используется для двух production-полезных задач: распределенного rate limiting для machine-to-machine endpoints и response caching для read-heavy verification/search сценариев в multi-instance deployment.
+`Redis` используется для трех production-полезных задач: распределенного rate limiting для machine-to-machine endpoints, response caching для read-heavy verification/search сценариев и кэширования QR-изображений, чтобы не дергать внешний QR-сервис на каждый повторный запрос фронта.
 
 ## Содержание
 
@@ -65,6 +66,8 @@
   - номер студенческого билета из student-аккаунта
   - данные в записи диплома
 - может сгенерировать временную ссылку только на свой диплом
+- может создать QR-код только для своего диплома
+- получает QR через backend, а не напрямую из внешнего QR-сервиса
 
 ### HR
 
@@ -142,7 +145,7 @@ flowchart LR
     B --> D["Application Ports"]
     D --> E["Infrastructure: Postgres Repository"]
     D --> F["Infrastructure: InMemory Repository"]
-    B --> G["Infrastructure: JWT / Hashing / Signing / Redis Rate Limit / Response Cache"]
+    B --> G["Infrastructure: JWT / Hashing / Signing / Redis Rate Limit / Response Cache / QR HTTP Client"]
 ```
 
 ### Почему так
@@ -150,6 +153,7 @@ flowchart LR
 - бизнес-логика не зависит от конкретной базы
 - `PostgresAppRepository` реализует те же trait-ы, что и `InMemoryAppRepository`
 - тесты идут через `in-memory`, а приложение по умолчанию работает через PostgreSQL
+- интеграция с QR-сервисом спрятана за отдельным application port, поэтому backend можно переключить на другого QR-провайдера без переписывания student API
 
 ## 4. Безопасность и модель данных
 
@@ -210,6 +214,24 @@ flowchart LR
 
 - обычный access token для авторизации пользователей
 - diploma access token для временных публичных ссылок студента
+
+### 4.6 QR-интеграция
+
+QR-код не генерируется самим backend.
+
+Вместо этого:
+
+- backend выпускает временную `share-link` на диплом
+- backend отправляет эту ссылку во внешний QR-сервис по HTTP
+- backend хранит локальную связку `diploma -> qr job -> qr id`
+- frontend работает только с API `Resume Vizor`, а не напрямую с QR-сервисом
+
+Это дает:
+
+- нормальную проверку ownership на стороне backend
+- аудит и локальный контроль жизненного цикла QR
+- возможность сменить QR-провайдера без изменений во frontend
+- безопасное хранение сервисного API key только на backend
 
 ### 4.5 Временная ссылка на диплом
 
@@ -288,9 +310,11 @@ tests/
 - [router.rs](/D:/Programming/Resume-visitor/src/http/router.rs) — все маршруты
 - [docs.rs](/D:/Programming/Resume-visitor/src/http/docs.rs) — OpenAPI/Swagger описание
 - [cache.rs](/D:/Programming/Resume-visitor/src/infrastructure/cache.rs) — response cache с Redis/in-memory backend
+- [qr_client.rs](/D:/Programming/Resume-visitor/src/infrastructure/qr_client.rs) — HTTP-клиент к внешнему QR-сервису с таймаутами
 - [postgres.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/postgres.rs) — PostgreSQL persistence
 - [in_memory.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/in_memory.rs) — тестовое storage
 - [0001_init.sql](/D:/Programming/Resume-visitor/migrations/0001_init.sql) — миграция базы
+- [0003_diploma_qr_codes.sql](/D:/Programming/Resume-visitor/migrations/0003_diploma_qr_codes.sql) — локальное хранение QR-состояния
 
 ## 6. Требования
 
@@ -327,6 +351,10 @@ cargo --version
 | `REDIS_URL` | нет | `redis://localhost:6379` | Redis для distributed rate limiting и response caching; если не задан, используется `in-memory` fallback |
 | `REDIS_RATE_LIMIT_PREFIX` | нет | `resume_vizor:hr_rate_limit` | префикс ключей rate limiter-а в Redis |
 | `REDIS_CACHE_PREFIX` | нет | `resume_vizor:request_cache` | префикс ключей response cache в Redis |
+| `QR_SERVICE_BASE_URL` | нет | `http://localhost:8090` | базовый URL внешнего QR-сервиса |
+| `QR_SERVICE_API_KEY` | нет | `replace-with-qr-service-api-key` | сервисный API key для backend-to-backend запросов к QR-сервису |
+| `QR_SERVICE_CONNECT_TIMEOUT_SECONDS` | нет | `3` | timeout на установку TCP/TLS соединения с QR-сервисом |
+| `QR_SERVICE_REQUEST_TIMEOUT_SECONDS` | нет | `10` | общий timeout одного HTTP-запроса к QR-сервису |
 | `DIPLOMA_HASH_KEY` | да | `replace-with-a-long-random-secret` | секрет для keyed hashing полей диплома |
 | `JWT_SECRET` | да | `replace-with-another-long-random-secret` | секрет для access token и share token |
 | `ATS_API_KEY_SECRET` | да | `replace-with-ats-api-key-secret` | секрет для генерации и хеширования ATS API keys |
@@ -352,6 +380,10 @@ DATABASE_MAX_CONNECTIONS=10
 REDIS_URL=redis://localhost:6379
 REDIS_RATE_LIMIT_PREFIX=resume_vizor:hr_rate_limit
 REDIS_CACHE_PREFIX=resume_vizor:request_cache
+QR_SERVICE_BASE_URL=http://localhost:8090
+QR_SERVICE_API_KEY=replace-with-qr-service-api-key
+QR_SERVICE_CONNECT_TIMEOUT_SECONDS=3
+QR_SERVICE_REQUEST_TIMEOUT_SECONDS=10
 DIPLOMA_HASH_KEY=replace-with-a-long-random-secret
 JWT_SECRET=replace-with-another-long-random-secret
 ATS_API_KEY_SECRET=replace-with-ats-api-key-secret
@@ -498,10 +530,13 @@ cargo test
 - HR search
 - rate limiter
 - response cache
+- QR integration и proxy endpoints
+- cache QR content
 - smoke на `health` и OpenAPI
 - HTTP integration tests для auth-flow
 - HTTP integration tests для `university -> student -> public link`
 - HTTP integration tests для machine-to-machine `ATS` и `HR automation`
+- HTTP integration tests для `student -> qr -> binary content`
 
 ## 10. Общие правила API
 
@@ -1012,6 +1047,63 @@ curl -X POST "http://localhost:8080/api/v1/university/diplomas/import" \
 }
 ```
 
+#### `POST /api/v1/student/diplomas/{diploma_id}/qr`
+
+Создает QR-код на временную student share-link или возвращает уже актуальный QR, если он еще жив.
+
+Пример запроса:
+
+```json
+{
+  "format": "png",
+  "size": 512,
+  "force_regenerate": false
+}
+```
+
+Пример ответа:
+
+```json
+{
+  "diploma_id": "00000000-0000-0000-0000-000000000001",
+  "status": "ready",
+  "job_id": "job-1",
+  "qr_id": "qr-1",
+  "format": "png",
+  "size": 512,
+  "expires_at": "2026-04-04T15:30:00Z",
+  "error_message": null,
+  "status_url": "http://localhost:8080/api/v1/student/diplomas/00000000-0000-0000-0000-000000000001/qr",
+  "content_url": "http://localhost:8080/api/v1/student/diplomas/00000000-0000-0000-0000-000000000001/qr/content",
+  "created_at": "2026-04-04T15:00:00Z",
+  "updated_at": "2026-04-04T15:00:01Z"
+}
+```
+
+Важно:
+
+- backend сам выпускает `share-link` и отправляет ее в QR-сервис
+- ownership диплома проверяется до вызова внешнего сервиса
+- если QR-сервис не настроен, backend вернет `503`
+
+#### `GET /api/v1/student/diplomas/{diploma_id}/qr`
+
+Возвращает локально сохраненный статус QR и при необходимости синхронизирует его через внешний `GET /api/v1/qr/jobs/{job_id}` или `GET /api/v1/qr/{qr_id}`.
+
+#### `GET /api/v1/student/diplomas/{diploma_id}/qr/content`
+
+Возвращает сам QR как бинарный `image/png` или `image/svg+xml`.
+
+Важно:
+
+- frontend ходит только в backend `Resume Vizor`
+- backend проксирует содержимое из внешнего QR-сервиса
+- содержимое QR кэшируется в Redis или `in-memory` fallback до истечения TTL самого QR
+
+#### `DELETE /api/v1/student/diplomas/{diploma_id}/qr`
+
+Удаляет локальную QR-связку и делает `best effort` удаление QR во внешнем сервисе.
+
 ### 11.6 HR API
 
 Все маршруты раздела требуют:
@@ -1246,6 +1338,7 @@ GET /metrics
 - при наличии `REDIS_URL` используется Redis-backed cache
 - без Redis приложение автоматически переключается на `in-memory` fallback
 - при изменении дипломов cache инвалидируется через namespace versioning, так что старые cached entries перестают использоваться без полного scan/delete по ключам
+- QR-изображения тоже кэшируются через тот же cache backend, чтобы фронт не вызывал внешний QR-сервис на каждое повторное открытие диплома
 
 ### 12.3 Health probes
 
@@ -1408,7 +1501,42 @@ sequenceDiagram
     API-->>ST: owned diplomas
 ```
 
-### 14.3 Поток HR
+### 14.3 Поток QR-кода
+
+```mermaid
+sequenceDiagram
+    participant ST as Student Frontend
+    participant API as Axum API
+    participant QS as QrService
+    participant QC as QR HTTP Client
+    participant QR as External QR Service
+    participant DB as PostgreSQL
+    participant RC as Redis/Response Cache
+
+    ST->>API: POST /api/v1/student/diplomas/{id}/qr
+    API->>QS: create_or_get_diploma_qr(...)
+    QS->>DB: verify ownership + save qr state
+    QS->>QC: POST /api/v1/qr/jobs
+    QC->>QR: create qr job
+    QR-->>QC: job_id / qr_id / status
+    QC-->>QS: normalized response
+    QS->>DB: persist qr record
+    API-->>ST: status_url + content_url
+
+    ST->>API: GET /api/v1/student/diplomas/{id}/qr/content
+    API->>QS: get_diploma_qr_content(...)
+    QS->>RC: cache lookup
+    alt cache miss
+        QS->>QC: GET /api/v1/qr/{qr_id}/content
+        QC->>QR: fetch binary image
+        QR-->>QC: image/png
+        QC-->>QS: binary qr content
+        QS->>RC: cache until qr expires
+    end
+    API-->>ST: image/png
+```
+
+### 14.4 Поток HR
 
 ```mermaid
 sequenceDiagram
