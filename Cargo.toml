@@ -28,7 +28,7 @@ secrecy = { version = "0.10.3", features = ["serde"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros"] }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["full"] }
-tower = "0.5.2"
+tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.6.6", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
