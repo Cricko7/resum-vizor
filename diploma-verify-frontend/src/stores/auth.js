@@ -11,7 +11,6 @@ export const useAuthStore = defineStore('auth', () => {
   const isStudent = computed(() => user.value?.role === 'student')
   const isHR = computed(() => user.value?.role === 'hr')
   
-  // Логин
   async function login(email, password) {
     try {
       const response = await authService.login(email, password)
@@ -25,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       return { success: true, user: response.user }
     } catch (error) {
+      console.error('Login error:', error.response?.data)
       return { 
         success: false, 
         error: error.response?.data?.message || 'Ошибка входа' 
@@ -32,24 +32,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
-  // Регистрация
   async function register(data) {
     try {
-      let response
-      
-      switch (data.role) {
-        case 'student':
-          response = await authService.registerStudent(data)
-          break
-        case 'university':
-          response = await authService.registerUniversity(data)
-          break
-        case 'hr':
-          response = await authService.registerHR(data)
-          break
-        default:
-          throw new Error('Неизвестная роль')
-      }
+      const response = await authService.register(data)
       
       token.value = response.access_token
       user.value = response.user
@@ -60,24 +45,38 @@ export const useAuthStore = defineStore('auth', () => {
       
       return { success: true, user: response.user }
     } catch (error) {
+      console.error('Registration error:', error.response?.data)
+      
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error ||
+                          error.message ||
+                          'Ошибка регистрации'
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Ошибка регистрации' 
+        error: errorMessage
       }
     }
   }
   
-  // Выход
   function logout() {
+    // Очищаем состояние
     token.value = null
     user.value = null
     
+    // Очищаем localStorage
     localStorage.removeItem('token')
     localStorage.removeItem('user_role')
     localStorage.removeItem('user')
+    
+    // Опционально: можно отправить запрос на бэкенд для инвалидации токена
+    // try {
+    //   await authService.logout()
+    // } catch (e) {
+    //   console.error('Logout error:', e)
+    // }
   }
   
-  // Получение текущего пользователя
   async function fetchMe() {
     if (!token.value) return null
     
@@ -86,7 +85,10 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('user', JSON.stringify(user.value))
       return user.value
     } catch (error) {
-      logout()
+      // Если токен невалидный, выходим
+      if (error.response?.status === 401) {
+        logout()
+      }
       return null
     }
   }

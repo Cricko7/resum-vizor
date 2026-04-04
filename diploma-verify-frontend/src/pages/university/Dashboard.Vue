@@ -5,25 +5,6 @@
       <p class="subtitle">Управление дипломами вашего учебного заведения</p>
     </div>
 
-    <!-- Статистика -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📜</div>
-        <div class="stat-number">{{ stats.total || 0 }}</div>
-        <div class="stat-label">Всего дипломов</div>
-      </div>
-      <div class="stat-card success">
-        <div class="stat-icon">✅</div>
-        <div class="stat-number">{{ stats.active || 0 }}</div>
-        <div class="stat-label">Активных</div>
-      </div>
-      <div class="stat-card danger">
-        <div class="stat-icon">⚠️</div>
-        <div class="stat-number">{{ stats.revoked || 0 }}</div>
-        <div class="stat-label">Аннулированных</div>
-      </div>
-    </div>
-
     <!-- Действия -->
     <div class="actions-bar">
       <button class="btn-primary" @click="showCreateModal = true">
@@ -34,61 +15,13 @@
       </button>
     </div>
 
-    <!-- Список дипломов -->
-    <div class="diplomas-list">
-      <div class="list-header">
-        <h2>Список дипломов</h2>
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          placeholder="Поиск..."
-          class="search-input"
-        />
-      </div>
-
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        <p>Загрузка...</p>
-      </div>
-      
-      <div v-else-if="diplomas.length === 0" class="empty-state">
-        <p>Нет загруженных дипломов</p>
-      </div>
-
-      <div v-else class="diploma-table">
-        <div v-for="diploma in filteredDiplomas" :key="diploma.diploma_id" class="diploma-row">
-          <div class="diploma-info">
-            <div class="diploma-name">{{ diploma.student_full_name || 'Студент' }}</div>
-            <div class="diploma-details">
-              <span>№ диплома: ****{{ diploma.diploma_number_last4 }}</span>
-              <span>Студент: ****{{ diploma.student_number_last4 }}</span>
-              <span>Дата выпуска: {{ diploma.graduation_date }}</span>
-            </div>
-          </div>
-          <div class="diploma-status">
-            <span :class="['status-badge', diploma.status]">
-              {{ diploma.status === 'active' ? 'Активен' : 'Аннулирован' }}
-            </span>
-          </div>
-          <div class="diploma-actions">
-            <button 
-              v-if="diploma.status === 'active'"
-              class="btn-icon danger" 
-              @click="revokeDiploma(diploma.diploma_id)"
-              title="Аннулировать"
-            >
-              🔒
-            </button>
-            <button 
-              v-else
-              class="btn-icon success" 
-              @click="restoreDiploma(diploma.diploma_id)"
-              title="Восстановить"
-            >
-              🔓
-            </button>
-          </div>
-        </div>
+    <!-- Информация о созданных дипломах -->
+    <div class="info-card">
+      <div class="info-icon">ℹ️</div>
+      <div class="info-text">
+        <strong>Дипломы успешно создаются в системе</strong><br>
+        Для просмотра списка дипломов используйте поиск через студента или HR портал.
+        Созданные дипломы автоматически подписываются цифровой подписью ВУЗа.
       </div>
     </div>
 
@@ -167,10 +100,6 @@ const $q = useQuasar()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
-const diplomas = ref([])
-const loading = ref(false)
-const searchQuery = ref('')
-const stats = ref({ total: 0, active: 0, revoked: 0 })
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
 const creating = ref(false)
@@ -187,37 +116,14 @@ const newDiploma = ref({
   graduation_date: ''
 })
 
-const filteredDiplomas = computed(() => {
-  if (!searchQuery.value) return diplomas.value
-  const query = searchQuery.value.toLowerCase()
-  return diplomas.value.filter(d => 
-    d.student_full_name?.toLowerCase().includes(query) ||
-    d.diploma_number_last4?.includes(query)
-  )
-})
-
-const loadDiplomas = async () => {
-  loading.value = true
-  try {
-    const response = await universityService.getDiplomas()
-    diplomas.value = response.items || []
-    
-    // Подсчёт статистики
-    stats.value.total = diplomas.value.length
-    stats.value.active = diplomas.value.filter(d => d.status === 'active').length
-    stats.value.revoked = diplomas.value.filter(d => d.status === 'revoked').length
-  } catch (error) {
-    $q.notify({ type: 'negative', message: 'Ошибка загрузки дипломов' })
-  } finally {
-    loading.value = false
-  }
-}
-
 const createDiploma = async () => {
   creating.value = true
   try {
-    await universityService.createDiploma(newDiploma.value)
-    $q.notify({ type: 'positive', message: 'Диплом создан!' })
+    const result = await universityService.createDiploma(newDiploma.value)
+    $q.notify({ 
+      type: 'positive', 
+      message: `Диплом создан! Record hash: ${result.record_hash?.slice(0, 20)}...` 
+    })
     showCreateModal.value = false
     newDiploma.value = {
       student_full_name: '',
@@ -228,9 +134,11 @@ const createDiploma = async () => {
       program_name: '',
       graduation_date: ''
     }
-    await loadDiplomas()
   } catch (error) {
-    $q.notify({ type: 'negative', message: error.response?.data?.message || 'Ошибка создания' })
+    $q.notify({ 
+      type: 'negative', 
+      message: error.response?.data?.message || 'Ошибка создания' 
+    })
   } finally {
     creating.value = false
   }
@@ -247,65 +155,22 @@ const handleFileUpload = async (event) => {
     const formData = new FormData()
     formData.append('file', file)
     
-    const response = await universityService.importDiplomas(formData, (progressEvent) => {
-      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-      console.log(`Upload progress: ${percent}%`)
-    })
+    const response = await universityService.importDiplomas(formData)
     
     importResult.value = response
     $q.notify({ 
       type: response.failed_count === 0 ? 'positive' : 'warning', 
       message: `Импортировано: ${response.imported_count}, Ошибок: ${response.failed_count}`
     })
-    await loadDiplomas()
   } catch (error) {
     $q.notify({ type: 'negative', message: 'Ошибка импорта' })
   } finally {
     importing.value = false
   }
 }
-
-const revokeDiploma = async (id) => {
-  $q.dialog({
-    title: 'Аннулирование диплома',
-    message: 'Вы уверены, что хотите аннулировать этот диплом?',
-    ok: 'Да, аннулировать',
-    cancel: 'Отмена'
-  }).onOk(async () => {
-    try {
-      await universityService.revokeDiploma(id)
-      $q.notify({ type: 'positive', message: 'Диплом аннулирован' })
-      await loadDiplomas()
-    } catch (error) {
-      $q.notify({ type: 'negative', message: 'Ошибка' })
-    }
-  })
-}
-
-const restoreDiploma = async (id) => {
-  $q.dialog({
-    title: 'Восстановление диплома',
-    message: 'Вы уверены, что хотите восстановить этот диплом?',
-    ok: 'Да, восстановить',
-    cancel: 'Отмена'
-  }).onOk(async () => {
-    try {
-      await universityService.restoreDiploma(id)
-      $q.notify({ type: 'positive', message: 'Диплом восстановлен' })
-      await loadDiplomas()
-    } catch (error) {
-      $q.notify({ type: 'negative', message: 'Ошибка' })
-    }
-  })
-}
-
-onMounted(() => {
-  loadDiplomas()
-})
 </script>
 
 <style scoped>
-/* Стили остаются те же, что и раньше */
 .university-dashboard {
   max-width: 1200px;
   margin: 0 auto;
@@ -325,40 +190,6 @@ onMounted(() => {
   color: #666;
   margin-top: 5px;
 }
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.stat-icon {
-  font-size: 32px;
-  margin-bottom: 10px;
-}
-
-.stat-number {
-  font-size: 32px;
-  font-weight: bold;
-  color: #667eea;
-}
-
-.stat-label {
-  color: #666;
-  margin-top: 5px;
-}
-
-.stat-card.success .stat-number { color: #48bb78; }
-.stat-card.danger .stat-number { color: #f56565; }
 
 .actions-bar {
   display: flex;
@@ -389,84 +220,23 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
-.diplomas-list {
-  background: white;
+.info-card {
+  background: #e3f2fd;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.list-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
   gap: 15px;
-}
-
-.list-header h2 {
-  margin: 0;
-}
-
-.search-input {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  width: 250px;
-}
-
-.diploma-row {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  border-bottom: 1px solid #eee;
+  margin-bottom: 30px;
 }
 
-.diploma-row:hover {
-  background: #f8f9fa;
+.info-icon {
+  font-size: 32px;
 }
 
-.diploma-name {
-  font-weight: 500;
-  margin-bottom: 5px;
-}
-
-.diploma-details {
-  display: flex;
-  gap: 20px;
-  font-size: 12px;
-  color: #666;
-}
-
-.status-badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-}
-
-.status-badge.active {
-  background: #c6f6d5;
-  color: #22543d;
-}
-
-.status-badge.revoked {
-  background: #fed7d7;
-  color: #742a2a;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 5px;
-  transition: transform 0.2s;
-}
-
-.btn-icon:hover {
-  transform: scale(1.1);
+.info-text {
+  color: #1565c0;
+  line-height: 1.5;
 }
 
 .modal {
@@ -532,24 +302,10 @@ onMounted(() => {
   color: white;
 }
 
-.loading, .empty-state {
+.loading {
   text-align: center;
-  padding: 40px;
+  padding: 20px;
   color: #666;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #667eea;
-  border-radius: 50%;
-  margin: 0 auto 10px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .hint {

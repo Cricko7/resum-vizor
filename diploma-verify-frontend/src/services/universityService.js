@@ -1,15 +1,14 @@
 import api from './api'
 
 export const universityService = {
-  // Получить все дипломы ВУЗа
-  async getDiplomas(page = 1, limit = 50) {
-    const response = await api.get('/api/v1/university/diplomas', {
-      params: { page, limit }
-    })
-    return response.data
+  // Эндпоинта GET /api/v1/university/diplomas НЕТ в бэкенде
+  // Возвращаем пустой массив, чтобы не ломать UI
+  async getDiplomas() {
+    console.warn('⚠️ GET /api/v1/university/diplomas не существует в бэкенде')
+    return { items: [], total: 0 }
   },
 
-  // Создать один диплом
+  // ✅ Создание диплома (POST /api/v1/university/diplomas) - существует
   async createDiploma(data) {
     const response = await api.post('/api/v1/university/diplomas', {
       student_full_name: data.student_full_name,
@@ -24,7 +23,7 @@ export const universityService = {
     return response.data
   },
 
-  // Импорт CSV/XLSX
+  // ✅ Импорт CSV (POST /api/v1/university/diplomas/import) - существует
   async importDiplomas(formData, onProgress) {
     const response = await api.post('/api/v1/university/diplomas/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -33,21 +32,15 @@ export const universityService = {
     return response.data
   },
 
-  // Аннулировать диплом
+  // ✅ Аннулирование диплома (POST /api/v1/university/diplomas/{id}/revoke) - существует
   async revokeDiploma(diplomaId) {
     const response = await api.post(`/api/v1/university/diplomas/${diplomaId}/revoke`)
     return response.data
   },
 
-  // Восстановить диплом
+  // ✅ Восстановление диплома (POST /api/v1/university/diplomas/{id}/restore) - существует
   async restoreDiploma(diplomaId) {
     const response = await api.post(`/api/v1/university/diplomas/${diplomaId}/restore`)
-    return response.data
-  },
-
-  // Получить статистику
-  async getStats() {
-    const response = await api.get('/api/v1/university/stats')
     return response.data
   }
 }

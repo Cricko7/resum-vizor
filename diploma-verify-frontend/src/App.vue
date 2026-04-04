@@ -1,21 +1,28 @@
 <template>
   <div id="app">
+    <AppHeader />
     <router-view />
   </div>
 </template>
 
 <script setup>
 import { onMounted } from 'vue'
+import { useAuthStore } from '@stores/auth'
+import AppHeader from '@components/common/AppHeader.vue'
 
-onMounted(() => {
-  console.log('App mounted successfully!')
+const authStore = useAuthStore()
+
+onMounted(async () => {
+  if (authStore.token) {
+    await authStore.fetchMe()
+  }
 })
 </script>
 
-<style>
-/* Базовые стили */
+<style lang="scss">
+@import '@assets/styles/main.scss';
+
 #app {
-  width: 100%;
   min-height: 100vh;
 }
 </style>

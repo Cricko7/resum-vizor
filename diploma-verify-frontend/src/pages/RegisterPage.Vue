@@ -64,16 +64,16 @@
             </div>
           </template>
           
-          <!-- Поля для ВУЗа (исправлено) -->
+          <!-- Поля для ВУЗа -->
           <template v-if="selectedRole === 'university'">
             <div class="form-group">
               <input
                 type="text"
                 v-model="form.university_id"
-                placeholder="ID ВУЗа (UUID)"
+                placeholder="ID ВУЗа (оставьте пустым для автогенерации)"
                 :disabled="loading"
               />
-              <div class="hint">Оставьте пустым для автоматической генерации</div>
+              <div class="hint">Пример: 11111111-1111-1111-1111-111111111111</div>
             </div>
             
             <div class="form-group">
@@ -85,18 +85,6 @@
                 :disabled="loading"
               />
               <div class="hint">Пример: UNI-001</div>
-            </div>
-          </template>
-          
-          <!-- Поля для HR -->
-          <template v-if="selectedRole === 'hr'">
-            <div class="form-group">
-              <input
-                type="text"
-                v-model="form.company_name"
-                placeholder="Название компании"
-                :disabled="loading"
-              />
             </div>
           </template>
           
@@ -125,6 +113,15 @@ import { useAuthStore } from '@stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
+// Функция генерации UUID v4
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 const roles = [
   { value: 'student', label: 'Студент' },
   { value: 'university', label: 'ВУЗ' },
@@ -138,8 +135,7 @@ const form = ref({
   full_name: '',
   student_number: '',
   university_id: '',
-  university_code: '',
-  company_name: ''
+  university_code: ''
 })
 const loading = ref(false)
 const error = ref('')
@@ -148,7 +144,6 @@ const handleRegister = async () => {
   loading.value = true
   error.value = ''
   
-  // Подготавливаем данные в зависимости от роли
   let registerData = {
     email: form.value.email,
     password: form.value.password,
@@ -162,8 +157,8 @@ const handleRegister = async () => {
     registerData.university_code = null
   } 
   else if (selectedRole.value === 'university') {
-    // Для ВУЗа: если university_id пустой, отправляем null (бэкенд сгенерирует сам)
-    registerData.university_id = form.value.university_id || null
+    // Автоматически генерируем UUID если не введён
+    registerData.university_id = form.value.university_id || generateUUID()
     registerData.university_code = form.value.university_code
     registerData.student_number = null
   } 
@@ -172,6 +167,8 @@ const handleRegister = async () => {
     registerData.university_code = null
     registerData.student_number = null
   }
+  
+  console.log('📤 Отправка регистрации:', registerData)
   
   const result = await authStore.register(registerData)
   
@@ -188,6 +185,7 @@ const handleRegister = async () => {
     }
   } else {
     error.value = result.error
+    console.error('❌ Ошибка регистрации:', result.error)
   }
 }
 </script>
