@@ -26,3 +26,4 @@ typed_id!(StudentId);
 typed_id!(DiplomaId);
 typed_id!(CertificateId);
 typed_id!(UserId);
+typed_id!(AtsApiKeyId);

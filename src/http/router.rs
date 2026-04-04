@@ -3,10 +3,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::http::{
     AppState, auth, common, hr,
-    middleware::{
-        enforce_hr_automation_rate_limit, require_hr_role, require_student_role,
-        require_university_role,
-    },
+    middleware::{require_hr_role, require_student_role, require_university_role},
     student, university,
 };
 use crate::infrastructure::metrics::metrics_middleware;
@@ -34,14 +31,13 @@ pub fn create_router(state: AppState) -> Router {
     let hr_routes = Router::new()
         .route("/verify", post(hr::verify_diploma))
         .route("/registry/search", post(hr::search_registry))
-        .route(
-            "/automation/verify",
-            post(hr::automation_verify).layer(middleware::from_fn_with_state(
-                state.clone(),
-                enforce_hr_automation_rate_limit,
-            )),
-        )
+        .route("/api-keys", post(hr::create_ats_api_key).get(hr::list_ats_api_keys))
+        .route("/api-keys/{api_key_id}/revoke", post(hr::revoke_ats_api_key))
         .layer(middleware::from_fn_with_state(state.clone(), require_hr_role));
+
+    let hr_automation_routes = Router::new().route("/verify", post(hr::automation_verify));
+
+    let ats_routes = Router::new().route("/verify", post(hr::ats_verify));
 
     Router::new()
         .route("/health", get(common::health_check))
@@ -53,6 +49,8 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/university", university_routes)
         .nest("/api/v1/student", student_routes)
         .nest("/api/v1/hr", hr_routes)
+        .nest("/api/v1/hr/automation", hr_automation_routes)
+        .nest("/api/v1/ats", ats_routes)
         .layer(middleware::from_fn(metrics_middleware))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())

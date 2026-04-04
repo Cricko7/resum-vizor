@@ -19,6 +19,19 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: resume-vizor-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -27,6 +40,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
@@ -42,10 +57,17 @@ services:
       RUST_LOG: info,tower_http=info
       HR_API_RATE_LIMIT_REQUESTS: 60
       HR_API_RATE_LIMIT_WINDOW_SECONDS: 60
+      INTEGRATION_API_KEY_BURST_WINDOW_SECONDS: 10
+      INTEGRATION_API_KEY_ATS_ONLY_BURST_LIMIT: 30
+      INTEGRATION_API_KEY_HR_AUTOMATION_ONLY_BURST_LIMIT: 20
+      INTEGRATION_API_KEY_COMBINED_BURST_LIMIT: 40
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/resume_vizor
       DATABASE_MAX_CONNECTIONS: 10
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_PREFIX: resume_vizor:hr_rate_limit
       DIPLOMA_HASH_KEY: replace-with-a-long-random-secret
       JWT_SECRET: replace-with-another-long-random-secret
+      ATS_API_KEY_SECRET: replace-with-ats-api-key-secret
       JWT_TTL_MINUTES: 60
       UNIVERSITY_SIGNING_KEY: replace-with-signing-secret
       DIPLOMA_LINK_TTL_MINUTES: 30
@@ -83,4 +105,3 @@ services:
 volumes:
   postgres_data:
   grafana_data:
-

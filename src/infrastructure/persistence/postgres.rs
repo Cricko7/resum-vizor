@@ -3,12 +3,13 @@ use secrecy::ExposeSecret;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 use crate::{
-    application::ports::{DiplomaRepository, HealthChecker, UserRepository},
+    application::ports::{AtsApiKeyRepository, DiplomaRepository, HealthChecker, UserRepository},
     config::DatabaseSettings,
     domain::{
+        ats::{AtsApiKey, IntegrationApiScope},
         diploma::{Diploma, DiplomaStatus},
         hashing::HashedDiplomaPayload,
-        ids::{CertificateId, DiplomaId, StudentId, UniversityId, UserId},
+        ids::{AtsApiKeyId, CertificateId, DiplomaId, StudentId, UniversityId, UserId},
         user::{User, UserRole},
     },
     error::AppError,
@@ -258,6 +259,103 @@ impl UserRepository for PostgresAppRepository {
 }
 
 #[async_trait]
+impl AtsApiKeyRepository for PostgresAppRepository {
+    async fn create_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError> {
+        let result = sqlx::query(
+            r#"
+            INSERT INTO ats_api_keys (
+                id, hr_user_id, name, scope, key_prefix, key_hash, daily_request_limit,
+                burst_request_limit, burst_window_seconds,
+                created_at, updated_at, last_used_at, revoked_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            "#,
+        )
+        .bind(api_key.id.0)
+        .bind(api_key.hr_user_id.0)
+        .bind(&api_key.name)
+        .bind(integration_scope_to_db(api_key.scope))
+        .bind(&api_key.key_prefix)
+        .bind(&api_key.key_hash)
+        .bind(api_key.daily_request_limit as i64)
+        .bind(api_key.burst_request_limit as i64)
+        .bind(api_key.burst_window_seconds as i64)
+        .bind(api_key.created_at)
+        .bind(api_key.updated_at)
+        .bind(api_key.last_used_at)
+        .bind(api_key.revoked_at)
+        .execute(&self.pool)
+        .await;
+
+        match result {
+            Ok(_) => Ok(api_key),
+            Err(error) if is_unique_violation(&error) => {
+                Err(AppError::Conflict("ATS API key already exists".into()))
+            }
+            Err(_) => Err(AppError::Internal),
+        }
+    }
+
+    async fn find_ats_api_key_by_hash(&self, key_hash: &str) -> Result<Option<AtsApiKey>, AppError> {
+        let row = sqlx::query("SELECT * FROM ats_api_keys WHERE key_hash = $1")
+            .bind(key_hash)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        row.map(row_to_ats_api_key).transpose()
+    }
+
+    async fn find_ats_api_key_by_id(&self, api_key_id: AtsApiKeyId) -> Result<Option<AtsApiKey>, AppError> {
+        let row = sqlx::query("SELECT * FROM ats_api_keys WHERE id = $1")
+            .bind(api_key_id.0)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        row.map(row_to_ats_api_key).transpose()
+    }
+
+    async fn list_ats_api_keys_by_hr_user(&self, hr_user_id: UserId) -> Result<Vec<AtsApiKey>, AppError> {
+        let rows = sqlx::query("SELECT * FROM ats_api_keys WHERE hr_user_id = $1 ORDER BY created_at DESC")
+            .bind(hr_user_id.0)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        rows.into_iter().map(row_to_ats_api_key).collect()
+    }
+
+    async fn update_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError> {
+        sqlx::query(
+            r#"
+            UPDATE ats_api_keys
+            SET name = $2, scope = $3, key_prefix = $4, key_hash = $5,
+                daily_request_limit = $6, burst_request_limit = $7, burst_window_seconds = $8,
+                updated_at = $9, last_used_at = $10, revoked_at = $11
+            WHERE id = $1
+            "#,
+        )
+        .bind(api_key.id.0)
+        .bind(&api_key.name)
+        .bind(integration_scope_to_db(api_key.scope))
+        .bind(&api_key.key_prefix)
+        .bind(&api_key.key_hash)
+        .bind(api_key.daily_request_limit as i64)
+        .bind(api_key.burst_request_limit as i64)
+        .bind(api_key.burst_window_seconds as i64)
+        .bind(api_key.updated_at)
+        .bind(api_key.last_used_at)
+        .bind(api_key.revoked_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        Ok(api_key)
+    }
+}
+
+#[async_trait]
 impl HealthChecker for PostgresAppRepository {
     async fn is_ready(&self) -> bool {
         sqlx::query_scalar::<_, i32>("SELECT 1")
@@ -344,6 +442,24 @@ fn row_to_diploma(row: sqlx::postgres::PgRow) -> Result<Diploma, AppError> {
     })
 }
 
+fn row_to_ats_api_key(row: sqlx::postgres::PgRow) -> Result<AtsApiKey, AppError> {
+    Ok(AtsApiKey {
+        id: AtsApiKeyId(row.get("id")),
+        hr_user_id: UserId(row.get("hr_user_id")),
+        name: row.get("name"),
+        scope: parse_integration_scope(&row.get::<String, _>("scope"))?,
+        key_prefix: row.get("key_prefix"),
+        key_hash: row.get("key_hash"),
+        daily_request_limit: row.get::<i64, _>("daily_request_limit") as usize,
+        burst_request_limit: row.get::<i64, _>("burst_request_limit") as usize,
+        burst_window_seconds: row.get::<i64, _>("burst_window_seconds") as u64,
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+        last_used_at: row.get("last_used_at"),
+        revoked_at: row.get("revoked_at"),
+    })
+}
+
 fn parse_user_role(value: &str) -> Result<UserRole, AppError> {
     match value {
         "university" => Ok(UserRole::University),
@@ -361,10 +477,27 @@ fn parse_diploma_status(value: &str) -> Result<DiplomaStatus, AppError> {
     }
 }
 
+fn parse_integration_scope(value: &str) -> Result<IntegrationApiScope, AppError> {
+    match value {
+        "ats_only" => Ok(IntegrationApiScope::AtsOnly),
+        "hr_automation_only" => Ok(IntegrationApiScope::HrAutomationOnly),
+        "combined" => Ok(IntegrationApiScope::Combined),
+        _ => Err(AppError::Internal),
+    }
+}
+
 fn diploma_status_to_db(status: DiplomaStatus) -> &'static str {
     match status {
         DiplomaStatus::Active => "active",
         DiplomaStatus::Revoked => "revoked",
+    }
+}
+
+fn integration_scope_to_db(scope: IntegrationApiScope) -> &'static str {
+    match scope {
+        IntegrationApiScope::AtsOnly => "ats_only",
+        IntegrationApiScope::HrAutomationOnly => "hr_automation_only",
+        IntegrationApiScope::Combined => "combined",
     }
 }
 

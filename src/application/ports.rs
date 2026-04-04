@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use crate::{
     domain::{
+        ats::AtsApiKey,
         diploma::Diploma,
-        ids::{CertificateId, DiplomaId, UniversityId, UserId},
+        ids::{AtsApiKeyId, CertificateId, DiplomaId, UniversityId, UserId},
         user::User,
     },
     error::AppError,
@@ -39,9 +40,18 @@ pub trait UserRepository: Send + Sync {
     async fn update_user(&self, user: User) -> Result<User, AppError>;
 }
 
-pub trait AppRepository: DiplomaRepository + UserRepository {}
+#[async_trait]
+pub trait AtsApiKeyRepository: Send + Sync {
+    async fn create_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError>;
+    async fn find_ats_api_key_by_hash(&self, key_hash: &str) -> Result<Option<AtsApiKey>, AppError>;
+    async fn find_ats_api_key_by_id(&self, api_key_id: AtsApiKeyId) -> Result<Option<AtsApiKey>, AppError>;
+    async fn list_ats_api_keys_by_hr_user(&self, hr_user_id: UserId) -> Result<Vec<AtsApiKey>, AppError>;
+    async fn update_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError>;
+}
 
-impl<T> AppRepository for T where T: DiplomaRepository + UserRepository + ?Sized {}
+pub trait AppRepository: DiplomaRepository + UserRepository + AtsApiKeyRepository {}
+
+impl<T> AppRepository for T where T: DiplomaRepository + UserRepository + AtsApiKeyRepository + ?Sized {}
 
 pub trait PasswordHasher: Send + Sync {
     fn hash_password(&self, password: &str) -> Result<String, AppError>;
@@ -68,6 +78,12 @@ pub trait DiplomaSigner: Send + Sync {
         university_id: UniversityId,
         record_hash: &str,
     ) -> Result<String, AppError>;
+}
+
+pub trait AtsKeyManager: Send + Sync {
+    fn generate_api_key(&self) -> Result<String, AppError>;
+    fn hash_api_key(&self, api_key: &str) -> Result<String, AppError>;
+    fn key_prefix(&self, api_key: &str) -> String;
 }
 
 #[async_trait]

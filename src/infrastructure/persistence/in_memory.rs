@@ -4,10 +4,11 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 
 use crate::{
-    application::ports::{DiplomaRepository, HealthChecker, UserRepository},
+    application::ports::{AtsApiKeyRepository, DiplomaRepository, HealthChecker, UserRepository},
     domain::{
+        ats::AtsApiKey,
         diploma::Diploma,
-        ids::{CertificateId, DiplomaId, UserId},
+        ids::{AtsApiKeyId, CertificateId, DiplomaId, UserId},
         user::User,
     },
     error::AppError,
@@ -17,6 +18,7 @@ use crate::{
 pub struct InMemoryAppRepository {
     diplomas_by_id: Arc<RwLock<HashMap<String, Diploma>>>,
     users_by_id: Arc<RwLock<HashMap<String, User>>>,
+    ats_api_keys_by_id: Arc<RwLock<HashMap<String, AtsApiKey>>>,
 }
 
 #[async_trait]
@@ -149,6 +151,53 @@ impl UserRepository for InMemoryAppRepository {
         let mut storage = self.users_by_id.write().await;
         storage.insert(user.id.0.to_string(), user.clone());
         Ok(user)
+    }
+}
+
+#[async_trait]
+impl AtsApiKeyRepository for InMemoryAppRepository {
+    async fn create_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError> {
+        let mut storage = self.ats_api_keys_by_id.write().await;
+
+        if storage
+            .values()
+            .any(|existing| existing.key_hash == api_key.key_hash)
+        {
+            return Err(AppError::Conflict("ATS API key already exists".into()));
+        }
+
+        storage.insert(api_key.id.0.to_string(), api_key.clone());
+        Ok(api_key)
+    }
+
+    async fn find_ats_api_key_by_hash(&self, key_hash: &str) -> Result<Option<AtsApiKey>, AppError> {
+        let storage = self.ats_api_keys_by_id.read().await;
+        Ok(storage
+            .values()
+            .find(|api_key| api_key.key_hash == key_hash)
+            .cloned())
+    }
+
+    async fn find_ats_api_key_by_id(&self, api_key_id: AtsApiKeyId) -> Result<Option<AtsApiKey>, AppError> {
+        let storage = self.ats_api_keys_by_id.read().await;
+        Ok(storage.get(&api_key_id.0.to_string()).cloned())
+    }
+
+    async fn list_ats_api_keys_by_hr_user(&self, hr_user_id: UserId) -> Result<Vec<AtsApiKey>, AppError> {
+        let storage = self.ats_api_keys_by_id.read().await;
+        let mut items = storage
+            .values()
+            .filter(|api_key| api_key.hr_user_id == hr_user_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        items.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        Ok(items)
+    }
+
+    async fn update_ats_api_key(&self, api_key: AtsApiKey) -> Result<AtsApiKey, AppError> {
+        let mut storage = self.ats_api_keys_by_id.write().await;
+        storage.insert(api_key.id.0.to_string(), api_key.clone());
+        Ok(api_key)
     }
 }
 

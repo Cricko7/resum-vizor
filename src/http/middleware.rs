@@ -4,9 +4,13 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use std::time::Duration;
 
 use crate::{
-    domain::{ids::UserId, user::UserRole},
+    domain::{
+        ids::{AtsApiKeyId, UserId},
+        user::UserRole,
+    },
     error::AppError,
     http::AppState,
 };
@@ -16,6 +20,26 @@ use axum::extract::FromRef;
 pub struct AuthenticatedUser {
     pub user_id: UserId,
     pub role: UserRole,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedAtsClient {
+    pub api_key_id: AtsApiKeyId,
+    pub hr_user_id: UserId,
+    pub integration_name: String,
+    pub daily_request_limit: usize,
+    pub burst_request_limit: usize,
+    pub burst_window_seconds: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedAutomationClient {
+    pub api_key_id: AtsApiKeyId,
+    pub hr_user_id: UserId,
+    pub integration_name: String,
+    pub daily_request_limit: usize,
+    pub burst_request_limit: usize,
+    pub burst_window_seconds: u64,
 }
 
 impl<S> FromRequestParts<S> for AuthenticatedUser
@@ -31,6 +55,62 @@ where
     ) -> Result<Self, Self::Rejection> {
         let state = AppState::from_ref(state);
         decode_authenticated(&parts.headers, &state)
+    }
+}
+
+impl<S> FromRequestParts<S> for AuthenticatedAtsClient
+where
+    AppState: axum::extract::FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let state = AppState::from_ref(state);
+        let key = authenticate_integration_client(&parts.headers, &state, IntegrationTarget::Ats)
+            .await?;
+
+        Ok(Self {
+            api_key_id: key.id,
+            hr_user_id: key.hr_user_id,
+            integration_name: key.name,
+            daily_request_limit: key.daily_request_limit,
+            burst_request_limit: key.burst_request_limit,
+            burst_window_seconds: key.burst_window_seconds,
+        })
+    }
+}
+
+impl<S> FromRequestParts<S> for AuthenticatedAutomationClient
+where
+    AppState: axum::extract::FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let state = AppState::from_ref(state);
+        let key = authenticate_integration_client(
+            &parts.headers,
+            &state,
+            IntegrationTarget::HrAutomation,
+        )
+        .await?;
+
+        Ok(Self {
+            api_key_id: key.id,
+            hr_user_id: key.hr_user_id,
+            integration_name: key.name,
+            daily_request_limit: key.daily_request_limit,
+            burst_request_limit: key.burst_request_limit,
+            burst_window_seconds: key.burst_window_seconds,
+        })
     }
 }
 
@@ -56,27 +136,6 @@ pub async fn require_hr_role(
     next: Next,
 ) -> Result<Response, AppError> {
     require_role(state, request, next, UserRole::Hr).await
-}
-
-pub async fn enforce_hr_automation_rate_limit(
-    State(state): State<AppState>,
-    request: Request<axum::body::Body>,
-    next: Next,
-) -> Result<Response, AppError> {
-    let key = request
-        .headers()
-        .get("x-forwarded-for")
-        .or_else(|| request.headers().get("x-real-ip"))
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.split(',').next().unwrap_or(value).trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "global".to_string());
-
-    if !state.hr_rate_limiter.allow(&key).await {
-        return Err(AppError::RateLimited);
-    }
-
-    Ok(next.run(request).await)
 }
 
 async fn require_role(
@@ -128,4 +187,55 @@ fn parse_role_header(headers: &HeaderMap) -> Result<UserRole, AppError> {
         .ok_or_else(|| AppError::Forbidden("role header is required".into()))?;
 
     role.parse()
+}
+
+#[derive(Debug, Clone, Copy)]
+enum IntegrationTarget {
+    Ats,
+    HrAutomation,
+}
+
+async fn authenticate_integration_client(
+    headers: &HeaderMap,
+    state: &AppState,
+    target: IntegrationTarget,
+) -> Result<crate::domain::ats::AtsApiKey, AppError> {
+    let api_key = headers
+        .get("x-api-key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(AppError::Unauthorized)?;
+
+    let key = match target {
+        IntegrationTarget::Ats => state.ats_service.authorize_api_key_for_ats(api_key).await?,
+        IntegrationTarget::HrAutomation => {
+            state
+                .ats_service
+                .authorize_api_key_for_hr_automation(api_key)
+                .await?
+        }
+    };
+
+    let rate_limit_key = format!("integration_api_key:{}", key.id.0);
+    if !state
+        .hr_rate_limiter
+        .allow(&rate_limit_key, key.daily_request_limit, Duration::from_secs(86_400))
+        .await
+    {
+        return Err(AppError::RateLimited);
+    }
+
+    let burst_rate_limit_key = format!("integration_api_key_burst:{}", key.id.0);
+    if !state
+        .hr_rate_limiter
+        .allow(
+            &burst_rate_limit_key,
+            key.burst_request_limit,
+            Duration::from_secs(key.burst_window_seconds),
+        )
+        .await
+    {
+        return Err(AppError::RateLimited);
+    }
+
+    Ok(key)
 }
