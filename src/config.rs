@@ -78,6 +78,32 @@ impl Settings {
             .parse::<i64>()
             .context("DIPLOMA_LINK_TTL_MINUTES must be a valid i64")?;
 
+        if base_url.trim().is_empty() {
+            return Err(anyhow!("APP_BASE_URL must not be empty"));
+        }
+
+        if hr_api_rate_limit_requests == 0 {
+            return Err(anyhow!("HR_API_RATE_LIMIT_REQUESTS must be greater than 0"));
+        }
+
+        if hr_api_rate_limit_window_seconds == 0 {
+            return Err(anyhow!(
+                "HR_API_RATE_LIMIT_WINDOW_SECONDS must be greater than 0"
+            ));
+        }
+
+        if database_max_connections == 0 {
+            return Err(anyhow!("DATABASE_MAX_CONNECTIONS must be greater than 0"));
+        }
+
+        if jwt_ttl_minutes <= 0 {
+            return Err(anyhow!("JWT_TTL_MINUTES must be greater than 0"));
+        }
+
+        if diploma_link_ttl_minutes <= 0 {
+            return Err(anyhow!("DIPLOMA_LINK_TTL_MINUTES must be greater than 0"));
+        }
+
         Ok(Self {
             server: ServerSettings {
                 port,

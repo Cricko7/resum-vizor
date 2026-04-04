@@ -37,11 +37,13 @@ impl DiplomaRepository for InMemoryAppRepository {
 
     async fn find_by_student_id(&self, student_id: UserId) -> Result<Vec<Diploma>, AppError> {
         let storage = self.diplomas_by_id.read().await;
-        Ok(storage
+        let mut diplomas = storage
             .values()
             .filter(|diploma| diploma.student_account_id == Some(student_id))
             .cloned()
-            .collect())
+            .collect::<Vec<_>>();
+        diplomas.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        Ok(diplomas)
     }
 
     async fn find_by_certificate_id(
@@ -76,11 +78,13 @@ impl DiplomaRepository for InMemoryAppRepository {
 
     async fn search_by_student_name_hash(&self, full_name_hash: &str) -> Result<Vec<Diploma>, AppError> {
         let storage = self.diplomas_by_id.read().await;
-        Ok(storage
+        let mut diplomas = storage
             .values()
             .filter(|diploma| diploma.hashed_payload.student_full_name_hash == full_name_hash)
             .cloned()
-            .collect())
+            .collect::<Vec<_>>();
+        diplomas.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        Ok(diplomas)
     }
 
     async fn search_by_diploma_number_hash(
@@ -88,11 +92,13 @@ impl DiplomaRepository for InMemoryAppRepository {
         diploma_number_hash: &str,
     ) -> Result<Vec<Diploma>, AppError> {
         let storage = self.diplomas_by_id.read().await;
-        Ok(storage
+        let mut diplomas = storage
             .values()
             .filter(|diploma| diploma.hashed_payload.diploma_number_hash == diploma_number_hash)
             .cloned()
-            .collect())
+            .collect::<Vec<_>>();
+        diplomas.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        Ok(diplomas)
     }
 
     async fn search_by_university_code_hash(
@@ -100,11 +106,13 @@ impl DiplomaRepository for InMemoryAppRepository {
         university_code_hash: &str,
     ) -> Result<Vec<Diploma>, AppError> {
         let storage = self.diplomas_by_id.read().await;
-        Ok(storage
+        let mut diplomas = storage
             .values()
             .filter(|diploma| diploma.hashed_payload.university_code_hash == university_code_hash)
             .cloned()
-            .collect())
+            .collect::<Vec<_>>();
+        diplomas.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        Ok(diplomas)
     }
 }
 
