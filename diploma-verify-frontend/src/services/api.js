@@ -25,19 +25,32 @@ api.interceptors.request.use(
     
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error)
+  }
 )
 
 // Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const originalRequest = error.config
+    
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+      
+      // Clear local storage
       localStorage.removeItem('token')
       localStorage.removeItem('user_role')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      
+      // Redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
     }
+    
     return Promise.reject(error)
   }
 )
