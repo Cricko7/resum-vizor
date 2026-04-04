@@ -1,5 +1,6 @@
 pub mod api_keys;
 pub mod auth;
+pub mod cache;
 pub mod hashing;
 pub mod metrics;
 pub mod persistence;

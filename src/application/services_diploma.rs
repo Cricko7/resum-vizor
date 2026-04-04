@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use crate::{
     application::{
@@ -17,17 +17,22 @@ use crate::{
         ids::{DiplomaId, UniversityId, UserId},
     },
     error::AppError,
+    infrastructure::cache::ResponseCache,
 };
 
 use super::services_support::{
     intersect_or_replace, normalize_display_name, normalize_identifier, validate_request,
 };
 
+const DIPLOMA_CACHE_NAMESPACE: &str = "diploma_read_model";
+
 pub struct DiplomaService {
     repository: Arc<dyn AppRepository>,
     hasher: Arc<dyn DiplomaHasher>,
     signer: Arc<dyn DiplomaSigner>,
     jwt_provider: Arc<dyn JwtProvider>,
+    response_cache: Arc<dyn ResponseCache>,
+    request_cache_ttl: Duration,
 }
 
 impl DiplomaService {
@@ -36,12 +41,16 @@ impl DiplomaService {
         hasher: Arc<dyn DiplomaHasher>,
         signer: Arc<dyn DiplomaSigner>,
         jwt_provider: Arc<dyn JwtProvider>,
+        response_cache: Arc<dyn ResponseCache>,
+        request_cache_ttl: Duration,
     ) -> Self {
         Self {
             repository,
             hasher,
             signer,
             jwt_provider,
+            response_cache,
+            request_cache_ttl,
         }
     }
 
@@ -128,9 +137,16 @@ impl DiplomaService {
             diploma_number: request.diploma_number,
         };
         let canonical_hash = self.hasher.hash_verification_query(&query)?;
-        let diploma = self.repository.find_by_canonical_hash(&canonical_hash).await?;
+        let cache_key = self
+            .versioned_cache_key("verify_diploma", &canonical_hash)
+            .await;
 
-        Ok(match diploma {
+        if let Some(cached) = self.get_cached_json(&cache_key).await {
+            return Ok(cached);
+        }
+
+        let diploma = self.repository.find_by_canonical_hash(&canonical_hash).await?;
+        let result = match diploma {
             Some(diploma) => DiplomaVerificationResult {
                 found: true,
                 diploma_id: Some(diploma.id),
@@ -143,7 +159,10 @@ impl DiplomaService {
                 certificate_id: None,
                 status: None,
             },
-        })
+        };
+
+        self.set_cached_json(&cache_key, &result).await;
+        Ok(result)
     }
 
     pub async fn list_student_diplomas(&self, student_id: UserId) -> Result<Vec<Diploma>, AppError> {
@@ -271,13 +290,22 @@ impl DiplomaService {
     ) -> Result<PublicDiplomaView, AppError> {
         let claims = self.jwt_provider.decode_diploma_access_token(token)?;
         let diploma_id = uuid::Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
+        let cache_key = self
+            .versioned_cache_key("public_diploma_view", &diploma_id.to_string())
+            .await;
+
+        if let Some(cached) = self.get_cached_json(&cache_key).await {
+            return Ok(cached);
+        }
+
         let diploma = self
             .repository
             .find_by_id(DiplomaId(diploma_id))
             .await?
             .ok_or(AppError::NotFound)?;
-
-        Ok(diploma.into())
+        let result = PublicDiplomaView::from(diploma);
+        self.set_cached_json(&cache_key, &result).await;
+        Ok(result)
     }
 
     pub async fn search_hr_registry(
@@ -299,37 +327,67 @@ impl DiplomaService {
             ));
         }
 
+        let diploma_hash = if let Some(diploma_number) = request.diploma_number.as_deref() {
+            if diploma_number.trim().is_empty() {
+                None
+            } else {
+                Some(self.hasher.hash_diploma_number_lookup(diploma_number)?)
+            }
+        } else {
+            None
+        };
+        let university_code_hash = if let Some(university_code) = request.university_code.as_deref() {
+            if university_code.trim().is_empty() {
+                None
+            } else {
+                Some(self.hasher.hash_university_code_lookup(university_code)?)
+            }
+        } else {
+            None
+        };
+        let mut cache_fingerprint = Vec::new();
+        if let Some(diploma_hash) = diploma_hash.as_ref() {
+            cache_fingerprint.push(format!("diploma:{diploma_hash}"));
+        }
+        if let Some(university_code_hash) = university_code_hash.as_ref() {
+            cache_fingerprint.push(format!("university:{university_code_hash}"));
+        }
+        let cache_key = self
+            .versioned_cache_key("hr_registry_search", &cache_fingerprint.join("|"))
+            .await;
+
+        if let Some(cached) = self.get_cached_json(&cache_key).await {
+            return Ok(cached);
+        }
+
         let mut items = None;
 
-        if let Some(diploma_number) = request.diploma_number.as_deref() {
-            if !diploma_number.trim().is_empty() {
-                let diploma_hash = self.hasher.hash_diploma_number_lookup(diploma_number)?;
-                let matches = self
-                    .repository
-                    .search_by_diploma_number_hash(&diploma_hash)
-                    .await?;
-                items = Some(matches);
-            }
+        if let Some(diploma_hash) = diploma_hash.as_ref() {
+            let matches = self
+                .repository
+                .search_by_diploma_number_hash(diploma_hash)
+                .await?;
+            items = Some(matches);
         }
 
-        if let Some(university_code) = request.university_code.as_deref() {
-            if !university_code.trim().is_empty() {
-                let university_code_hash = self.hasher.hash_university_code_lookup(university_code)?;
-                let matches = self
-                    .repository
-                    .search_by_university_code_hash(&university_code_hash)
-                    .await?;
-                items = Some(intersect_or_replace(items, matches));
-            }
+        if let Some(university_code_hash) = university_code_hash.as_ref() {
+            let matches = self
+                .repository
+                .search_by_university_code_hash(university_code_hash)
+                .await?;
+            items = Some(intersect_or_replace(items, matches));
         }
 
-        Ok(HrRegistrySearchResponse {
+        let result = HrRegistrySearchResponse {
             items: items
                 .unwrap_or_default()
                 .into_iter()
                 .map(PublicDiplomaView::from)
                 .collect(),
-        })
+        };
+
+        self.set_cached_json(&cache_key, &result).await;
+        Ok(result)
     }
 
     pub async fn revoke_diploma(
@@ -350,7 +408,9 @@ impl DiplomaService {
         }
 
         diploma.revoke();
-        self.repository.update(diploma).await
+        let updated = self.repository.update(diploma).await?;
+        self.invalidate_diploma_cache().await;
+        Ok(updated)
     }
 
     pub async fn restore_diploma(
@@ -371,7 +431,9 @@ impl DiplomaService {
         }
 
         diploma.restore();
-        self.repository.update(diploma).await
+        let updated = self.repository.update(diploma).await?;
+        self.invalidate_diploma_cache().await;
+        Ok(updated)
     }
 
     async fn store_signed_diploma(&self, payload: CreateDiplomaPayload) -> Result<Diploma, AppError> {
@@ -381,7 +443,43 @@ impl DiplomaService {
             .signer
             .sign_record_hash(payload.university_id, &record_hash)?;
         let diploma = Diploma::from_payload(payload, hashed_payload, record_hash, university_signature);
+        let saved = self.repository.save(diploma).await?;
+        self.invalidate_diploma_cache().await;
+        Ok(saved)
+    }
 
-        self.repository.save(diploma).await
+    async fn invalidate_diploma_cache(&self) {
+        self.response_cache
+            .bump_namespace(DIPLOMA_CACHE_NAMESPACE)
+            .await;
+    }
+
+    async fn versioned_cache_key(&self, scope: &str, identity: &str) -> String {
+        let version = self
+            .response_cache
+            .namespace_version(DIPLOMA_CACHE_NAMESPACE)
+            .await;
+        format!("{scope}:v{version}:{identity}")
+    }
+
+    async fn get_cached_json<T>(&self, key: &str) -> Option<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let cached = self.response_cache.get(key).await?;
+        serde_json::from_str(&cached).ok()
+    }
+
+    async fn set_cached_json<T>(&self, key: &str, value: &T)
+    where
+        T: serde::Serialize,
+    {
+        let Ok(serialized) = serde_json::to_string(value) else {
+            return;
+        };
+
+        self.response_cache
+            .set(key, &serialized, self.request_cache_ttl)
+            .await;
     }
 }

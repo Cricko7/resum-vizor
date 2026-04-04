@@ -9,7 +9,7 @@ pub struct HrRegistrySearchRequest {
     pub university_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct HrRegistrySearchResponse {
     pub items: Vec<PublicDiplomaView>,
 }

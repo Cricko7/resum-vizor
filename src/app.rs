@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use tokio::net::TcpListener;
@@ -11,6 +11,7 @@ use crate::{
     infrastructure::{
         api_keys::Blake3AtsKeyManager,
         auth::{ArgonPasswordHasher, JwtService},
+        cache::{InMemoryResponseCache, RedisResponseCache, ResponseCache},
         hashing::Blake3DiplomaHasher,
         persistence::postgres::PostgresAppRepository,
         rate_limit::{HrRateLimiter, RedisRateLimiter, SimpleRateLimiter},
@@ -20,6 +21,7 @@ use crate::{
 
 pub async fn run(settings: Settings) -> anyhow::Result<()> {
     init_tracing(&settings);
+    let request_cache_ttl = Duration::from_secs(settings.server.request_cache_ttl_seconds);
 
     let hasher = Blake3DiplomaHasher::new(settings.security.diploma_hash_key.clone());
     let repository = Arc::new(PostgresAppRepository::connect(&settings.database).await?);
@@ -53,11 +55,24 @@ pub async fn run(settings: Settings) -> anyhow::Result<()> {
         );
         Arc::new(limiter)
     };
+    let response_cache: Arc<dyn ResponseCache> = if let Some(redis_settings) = &settings.redis {
+        let cache = RedisResponseCache::connect(redis_settings)
+            .await
+            .context("failed to initialize Redis-backed response cache")?;
+        info!("configured response cache backend: {}", cache.backend_name());
+        Arc::new(cache)
+    } else {
+        let cache = InMemoryResponseCache::new();
+        info!("configured response cache backend: {}", cache.backend_name());
+        Arc::new(cache)
+    };
     let diploma_service = Arc::new(DiplomaService::new(
         repository.clone(),
         Arc::new(hasher),
         signer,
         jwt_provider.clone(),
+        response_cache,
+        request_cache_ttl,
     ));
     let auth_service = Arc::new(AuthService::new(
         repository.clone(),
@@ -91,7 +106,10 @@ pub async fn run(settings: Settings) -> anyhow::Result<()> {
         .with_context(|| format!("failed to bind to {}", address))?;
 
     info!("server listening on {}", address);
-    axum::serve(listener, app).await.context("axum server failed")
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .context("axum server failed")
 }
 
 fn init_tracing(settings: &Settings) {
@@ -103,4 +121,33 @@ fn init_tracing(settings: &Settings) {
         .with_target(false)
         .compact()
         .init();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        use tokio::signal::unix::{SignalKind, signal};
+
+        let mut stream =
+            signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+        stream.recv().await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            info!("received Ctrl+C, starting graceful shutdown");
+        }
+        _ = terminate => {
+            info!("received SIGTERM, starting graceful shutdown");
+        }
+    }
 }

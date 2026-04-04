@@ -15,6 +15,7 @@ pub struct ServerSettings {
     pub port: u16,
     pub log_level: String,
     pub base_url: String,
+    pub request_cache_ttl_seconds: u64,
     pub hr_api_rate_limit_requests: usize,
     pub hr_api_rate_limit_window_seconds: u64,
     pub integration_api_key_burst_window_seconds: u64,
@@ -43,6 +44,7 @@ pub struct DatabaseSettings {
 pub struct RedisSettings {
     pub url: SecretString,
     pub rate_limit_prefix: String,
+    pub cache_prefix: String,
 }
 
 impl Settings {
@@ -57,6 +59,10 @@ impl Settings {
         let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info,tower_http=info".to_string());
         let base_url =
             std::env::var("APP_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+        let request_cache_ttl_seconds = std::env::var("REQUEST_CACHE_TTL_SECONDS")
+            .unwrap_or_else(|_| "60".to_string())
+            .parse::<u64>()
+            .context("REQUEST_CACHE_TTL_SECONDS must be a valid u64")?;
         let hr_api_rate_limit_requests = std::env::var("HR_API_RATE_LIMIT_REQUESTS")
             .unwrap_or_else(|_| "60".to_string())
             .parse::<usize>()
@@ -100,6 +106,8 @@ impl Settings {
             .map(|value| SecretString::new(value.into_boxed_str()));
         let redis_rate_limit_prefix = std::env::var("REDIS_RATE_LIMIT_PREFIX")
             .unwrap_or_else(|_| "resume_vizor:hr_rate_limit".to_string());
+        let redis_cache_prefix = std::env::var("REDIS_CACHE_PREFIX")
+            .unwrap_or_else(|_| "resume_vizor:request_cache".to_string());
         let jwt_secret = std::env::var("JWT_SECRET")
             .map(|value| SecretString::new(value.into_boxed_str()))
             .map_err(|_| anyhow!("JWT_SECRET is required"))?;
@@ -120,6 +128,10 @@ impl Settings {
 
         if base_url.trim().is_empty() {
             return Err(anyhow!("APP_BASE_URL must not be empty"));
+        }
+
+        if request_cache_ttl_seconds == 0 {
+            return Err(anyhow!("REQUEST_CACHE_TTL_SECONDS must be greater than 0"));
         }
 
         if hr_api_rate_limit_requests == 0 {
@@ -164,6 +176,10 @@ impl Settings {
             return Err(anyhow!("REDIS_RATE_LIMIT_PREFIX must not be empty"));
         }
 
+        if redis_url.is_some() && redis_cache_prefix.trim().is_empty() {
+            return Err(anyhow!("REDIS_CACHE_PREFIX must not be empty"));
+        }
+
         if jwt_ttl_minutes <= 0 {
             return Err(anyhow!("JWT_TTL_MINUTES must be greater than 0"));
         }
@@ -177,6 +193,7 @@ impl Settings {
                 port,
                 log_level,
                 base_url,
+                request_cache_ttl_seconds,
                 hr_api_rate_limit_requests,
                 hr_api_rate_limit_window_seconds,
                 integration_api_key_burst_window_seconds,
@@ -191,6 +208,7 @@ impl Settings {
             redis: redis_url.map(|url| RedisSettings {
                 url,
                 rate_limit_prefix: redis_rate_limit_prefix,
+                cache_prefix: redis_cache_prefix,
             }),
             security: SecuritySettings {
                 diploma_hash_key,

@@ -20,6 +20,7 @@ use crate::{
     infrastructure::{
         api_keys::Blake3AtsKeyManager,
         auth::{ArgonPasswordHasher, JwtService},
+        cache::InMemoryResponseCache,
         hashing::Blake3DiplomaHasher,
         persistence::in_memory::InMemoryAppRepository,
         signing::UniversityRecordSigner,
@@ -44,6 +45,8 @@ fn build_services() -> (AuthService, DiplomaService, Arc<dyn AppRepository>) {
         Arc::new(Blake3DiplomaHasher::new(secret("hash-secret"))),
         Arc::new(UniversityRecordSigner::new(&secret("sign-secret"))),
         jwt_provider,
+        Arc::new(InMemoryResponseCache::new()),
+        std::time::Duration::from_secs(60),
     );
 
     (auth_service, diploma_service, repository)

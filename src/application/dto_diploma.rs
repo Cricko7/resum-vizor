@@ -114,7 +114,7 @@ pub struct DiplomaStatusResponse {
     pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PublicDiplomaView {
     pub diploma_id: DiplomaId,
     pub certificate_id: CertificateId,
