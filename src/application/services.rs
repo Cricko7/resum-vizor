@@ -81,14 +81,36 @@ impl AuthService {
             ));
         }
 
+        let student_number = if request.role == UserRole::Student {
+            request
+                .student_number
+                .as_deref()
+                .map(normalize_identifier)
+        } else {
+            None
+        };
+        let university_id = if request.role == UserRole::University {
+            request.university_id
+        } else {
+            None
+        };
+        let university_code = if request.role == UserRole::University {
+            request
+                .university_code
+                .as_deref()
+                .map(normalize_identifier)
+        } else {
+            None
+        };
+
         let user = User::new(
             normalize_email(&request.email),
             self.password_hasher.hash_password(&request.password)?,
-            request.full_name.trim().to_string(),
-            request.student_number.map(|value| value.trim().to_string()),
+            normalize_display_name(&request.full_name),
+            student_number,
             request.role,
-            request.university_id,
-            request.university_code.map(|value| value.trim().to_string()),
+            university_id,
+            university_code,
         );
         let user = self.repository.create_user(user).await?;
         self.build_auth_response(user)
@@ -114,6 +136,12 @@ impl AuthService {
         request: ChangePasswordRequest,
     ) -> Result<(), AppError> {
         validate_new_password(&request.new_password)?;
+
+        if request.current_password == request.new_password {
+            return Err(AppError::Validation(
+                "new_password must be different from current_password".into(),
+            ));
+        }
 
         let mut user = self
             .repository
@@ -181,13 +209,13 @@ impl DiplomaService {
 
         let payload = CreateDiplomaPayload {
             university_id,
-            university_code,
-            student_full_name: request.student_full_name,
-            student_number: request.student_number,
+            university_code: normalize_identifier(&university_code),
+            student_full_name: normalize_display_name(&request.student_full_name),
+            student_number: normalize_identifier(&request.student_number),
             student_birth_date: request.student_birth_date,
-            diploma_number: request.diploma_number,
-            degree: request.degree,
-            program_name: request.program_name,
+            diploma_number: normalize_identifier(&request.diploma_number),
+            degree: normalize_display_name(&request.degree),
+            program_name: normalize_display_name(&request.program_name),
             graduation_date: request.graduation_date,
             honors: request.honors,
         };
@@ -209,13 +237,13 @@ impl DiplomaService {
             match self
                 .store_signed_diploma(CreateDiplomaPayload {
                     university_id,
-                    university_code: university_code.clone(),
-                    student_full_name: row.student_full_name,
-                    student_number: row.student_number,
+                    university_code: normalize_identifier(&university_code),
+                    student_full_name: normalize_display_name(&row.student_full_name),
+                    student_number: normalize_identifier(&row.student_number),
                     student_birth_date: None,
-                    diploma_number: row.diploma_number,
+                    diploma_number: normalize_identifier(&row.diploma_number),
                     degree: "registry_import".to_string(),
-                    program_name: row.program_name,
+                    program_name: normalize_display_name(&row.program_name),
                     graduation_date: chrono::NaiveDate::from_ymd_opt(row.graduation_year, 1, 1)
                         .unwrap_or(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
                     honors: false,
@@ -309,18 +337,18 @@ impl DiplomaService {
         let student_name_hash = self.hasher.hash_student_name_lookup(&student.full_name)?;
         let student_number_hash = self.hasher.hash_student_number_lookup(student_number)?;
 
-        let mut items = if let Some(diploma_number) = request.diploma_number.as_deref() {
-            if diploma_number.trim().is_empty() {
-                Vec::new()
-            } else {
+        let mut items = None;
+
+        if let Some(diploma_number) = request.diploma_number.as_deref() {
+            if !diploma_number.trim().is_empty() {
                 let diploma_hash = self.hasher.hash_diploma_number_lookup(diploma_number)?;
-                self.repository
+                let matches = self
+                    .repository
                     .search_by_diploma_number_hash(&diploma_hash)
-                    .await?
+                    .await?;
+                items = Some(matches);
             }
-        } else {
-            Vec::new()
-        };
+        }
 
         if let Some(full_name) = request.student_full_name.as_deref() {
             if !full_name.trim().is_empty() {
@@ -329,15 +357,11 @@ impl DiplomaService {
                     .repository
                     .search_by_student_name_hash(&full_name_hash)
                     .await?;
-
-                if items.is_empty() {
-                    items = matches;
-                } else {
-                    items.retain(|item| matches.iter().any(|candidate| candidate.id == item.id));
-                }
+                items = Some(intersect_or_replace(items, matches));
             }
         }
 
+        let items = items.unwrap_or_default();
         let mut owned = Vec::new();
         for mut item in items {
             if item.hashed_payload.student_full_name_hash != student_name_hash
@@ -425,18 +449,18 @@ impl DiplomaService {
             ));
         }
 
-        let mut items = if let Some(diploma_number) = request.diploma_number.as_deref() {
-            if diploma_number.trim().is_empty() {
-                Vec::new()
-            } else {
+        let mut items = None;
+
+        if let Some(diploma_number) = request.diploma_number.as_deref() {
+            if !diploma_number.trim().is_empty() {
                 let diploma_hash = self.hasher.hash_diploma_number_lookup(diploma_number)?;
-                self.repository
+                let matches = self
+                    .repository
                     .search_by_diploma_number_hash(&diploma_hash)
-                    .await?
+                    .await?;
+                items = Some(matches);
             }
-        } else {
-            Vec::new()
-        };
+        }
 
         if let Some(university_code) = request.university_code.as_deref() {
             if !university_code.trim().is_empty() {
@@ -445,17 +469,16 @@ impl DiplomaService {
                     .repository
                     .search_by_university_code_hash(&university_code_hash)
                     .await?;
-
-                if items.is_empty() {
-                    items = matches;
-                } else {
-                    items.retain(|item| matches.iter().any(|candidate| candidate.id == item.id));
-                }
+                items = Some(intersect_or_replace(items, matches));
             }
         }
 
         Ok(crate::application::dto::HrRegistrySearchResponse {
-            items: items.into_iter().map(PublicDiplomaView::from).collect(),
+            items: items
+                .unwrap_or_default()
+                .into_iter()
+                .map(PublicDiplomaView::from)
+                .collect(),
         })
     }
 
@@ -561,6 +584,24 @@ fn validate_new_password(password: &str) -> Result<(), AppError> {
 
 fn normalize_email(email: &str) -> String {
     email.trim().to_lowercase()
+}
+
+fn normalize_display_name(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn normalize_identifier(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn intersect_or_replace(existing: Option<Vec<Diploma>>, matches: Vec<Diploma>) -> Vec<Diploma> {
+    match existing {
+        Some(current) => current
+            .into_iter()
+            .filter(|item| matches.iter().any(|candidate| candidate.id == item.id))
+            .collect(),
+        None => matches,
+    }
 }
 
 #[cfg(test)]
@@ -1000,6 +1041,116 @@ mod tests {
             .await
             .expect("hr search by diploma number should succeed");
         assert_eq!(by_number.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn hr_search_with_both_filters_returns_empty_when_one_filter_does_not_match() {
+        let (auth_service, diploma_service, _) = build_services();
+        let university_id = UniversityId::new();
+
+        auth_service
+            .register(RegisterUserRequest {
+                email: "uni@example.com".into(),
+                password: "superpass".into(),
+                full_name: "Test University".into(),
+                student_number: None,
+                role: UserRole::University,
+                university_id: Some(university_id),
+                university_code: Some("UNI-777".into()),
+            })
+            .await
+            .expect("university registration should succeed");
+
+        diploma_service
+            .register_diploma(
+                university_id,
+                "UNI-777".into(),
+                RegisterDiplomaRequest {
+                    student_full_name: "Anna Volkova".into(),
+                    student_number: "ST-4444".into(),
+                    student_birth_date: None,
+                    diploma_number: "DP-2026-0042".into(),
+                    degree: "master".into(),
+                    program_name: "management".into(),
+                    graduation_date: chrono::NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+                    honors: false,
+                },
+            )
+            .await
+            .expect("diploma registration should succeed");
+
+        let result = diploma_service
+            .search_hr_registry(HrRegistrySearchRequest {
+                diploma_number: Some("DP-DOES-NOT-EXIST".into()),
+                university_code: Some("UNI-777".into()),
+            })
+            .await
+            .expect("hr search should succeed");
+
+        assert!(result.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn student_search_with_both_filters_returns_empty_when_one_filter_does_not_match() {
+        let (auth_service, diploma_service, _) = build_services();
+        let university_id = UniversityId::new();
+
+        auth_service
+            .register(RegisterUserRequest {
+                email: "uni@example.com".into(),
+                password: "superpass".into(),
+                full_name: "Test University".into(),
+                student_number: None,
+                role: UserRole::University,
+                university_id: Some(university_id),
+                university_code: Some("UNI-001".into()),
+            })
+            .await
+            .expect("university registration should succeed");
+
+        diploma_service
+            .register_diploma(
+                university_id,
+                "UNI-001".into(),
+                RegisterDiplomaRequest {
+                    student_full_name: "Ivan Petrov".into(),
+                    student_number: "ST-1001".into(),
+                    student_birth_date: None,
+                    diploma_number: "DP-2026-0001".into(),
+                    degree: "bachelor".into(),
+                    program_name: "computer science".into(),
+                    graduation_date: chrono::NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+                    honors: false,
+                },
+            )
+            .await
+            .expect("diploma registration should succeed");
+
+        let student = auth_service
+            .register(RegisterUserRequest {
+                email: "ivan@example.com".into(),
+                password: "superpass".into(),
+                full_name: "Ivan Petrov".into(),
+                student_number: Some("ST-1001".into()),
+                role: UserRole::Student,
+                university_id: None,
+                university_code: None,
+            })
+            .await
+            .expect("student registration should succeed");
+
+        let result = diploma_service
+            .search_student_diplomas(
+                student.user.id,
+                StudentDiplomaSearchRequest {
+                    diploma_number: Some("DP-DOES-NOT-EXIST".into()),
+                    student_full_name: Some("Ivan Petrov".into()),
+                },
+            )
+            .await
+            .expect("student search should succeed");
+
+        assert!(result.items.is_empty());
     }
 
     #[tokio::test]

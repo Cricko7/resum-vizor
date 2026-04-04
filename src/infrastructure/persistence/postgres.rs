@@ -268,12 +268,20 @@ impl HealthChecker for PostgresAppRepository {
 }
 
 async fn search_diplomas(pool: &PgPool, column: &str, value: &str) -> Result<Vec<Diploma>, AppError> {
-    let query = format!("SELECT * FROM diplomas WHERE {column} = $1 ORDER BY created_at DESC");
-    let rows = sqlx::query(&query)
-        .bind(value)
-        .fetch_all(pool)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    let query = match column {
+        "student_full_name_hash" => {
+            sqlx::query("SELECT * FROM diplomas WHERE student_full_name_hash = $1 ORDER BY created_at DESC")
+        }
+        "diploma_number_hash" => {
+            sqlx::query("SELECT * FROM diplomas WHERE diploma_number_hash = $1 ORDER BY created_at DESC")
+        }
+        "university_code_hash" => {
+            sqlx::query("SELECT * FROM diplomas WHERE university_code_hash = $1 ORDER BY created_at DESC")
+        }
+        _ => return Err(AppError::Internal),
+    };
+
+    let rows = query.bind(value).fetch_all(pool).await.map_err(|_| AppError::Internal)?;
 
     rows.into_iter().map(row_to_diploma).collect()
 }

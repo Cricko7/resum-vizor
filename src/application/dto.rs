@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{
-    diploma::{CreateDiplomaPayload, Diploma, DiplomaStatus, DiplomaVerificationResult},
+    diploma::{Diploma, DiplomaStatus, DiplomaVerificationResult},
     ids::{CertificateId, DiplomaId, UniversityId, UserId},
     user::{User, UserRole},
 };
@@ -74,23 +74,6 @@ pub struct RegisterDiplomaRequest {
     pub graduation_date: NaiveDate,
     #[serde(default)]
     pub honors: bool,
-}
-
-impl From<RegisterDiplomaRequest> for CreateDiplomaPayload {
-    fn from(value: RegisterDiplomaRequest) -> Self {
-        Self {
-            university_id: UniversityId(uuid::Uuid::nil()),
-            university_code: String::new(),
-            student_full_name: value.student_full_name,
-            student_number: value.student_number,
-            student_birth_date: value.student_birth_date,
-            diploma_number: value.diploma_number,
-            degree: value.degree,
-            program_name: value.program_name,
-            graduation_date: value.graduation_date,
-            honors: value.honors,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]

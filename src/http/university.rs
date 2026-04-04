@@ -134,11 +134,16 @@ fn parse_registry_file(filename: &str, bytes: &[u8]) -> Result<Vec<RegistryDiplo
 }
 
 fn parse_csv(bytes: &[u8]) -> Result<Vec<RegistryDiplomaRow>, AppError> {
-    let mut reader = csv::Reader::from_reader(Cursor::new(bytes));
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(Cursor::new(bytes));
     let mut rows = Vec::new();
 
-    for result in reader.records() {
+    for (index, result) in reader.records().enumerate() {
         let record = result.map_err(|_| AppError::Validation("failed to parse csv registry".into()))?;
+        if index == 0 && is_registry_header(&record) {
+            continue;
+        }
         rows.push(RegistryDiplomaRow {
             student_full_name: required_csv_value(&record, 0, "fio")?,
             student_number: required_csv_value(&record, 1, "student_number")?,
@@ -172,6 +177,22 @@ fn parse_xlsx(bytes: &[u8]) -> Result<Vec<RegistryDiplomaRow>, AppError> {
     }
 
     Ok(rows)
+}
+
+fn is_registry_header(record: &csv::StringRecord) -> bool {
+    let values = [
+        record.get(0),
+        record.get(1),
+        record.get(2),
+        record.get(3),
+        record.get(4),
+    ];
+
+    values[0].map(normalize_header_cell) == Some("fio".to_string())
+        && values[1].map(normalize_header_cell) == Some("student_number".to_string())
+        && values[2].map(normalize_header_cell) == Some("year".to_string())
+        && values[3].map(normalize_header_cell) == Some("specialnost".to_string())
+        && values[4].map(normalize_header_cell) == Some("diploma_number".to_string())
 }
 
 fn required_csv_value(record: &csv::StringRecord, index: usize, field: &str) -> Result<String, AppError> {
@@ -215,4 +236,35 @@ fn parse_year(value: &str) -> Result<i32, AppError> {
         .trim()
         .parse::<i32>()
         .map_err(|_| AppError::Validation(format!("invalid graduation year: {value}")))
+}
+
+fn normalize_header_cell(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_csv;
+
+    #[test]
+    fn csv_import_supports_documented_header_row() {
+        let csv = b"fio,student_number,year,specialnost,diploma_number\nIvan Petrov,ST-1001,2026,Computer Science,DP-2026-0001\n";
+
+        let rows = parse_csv(csv).expect("csv with header should parse");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].student_full_name, "Ivan Petrov");
+        assert_eq!(rows[0].student_number, "ST-1001");
+        assert_eq!(rows[0].graduation_year, 2026);
+    }
+
+    #[test]
+    fn csv_import_without_header_is_still_supported() {
+        let csv = b"Ivan Petrov,ST-1001,2026,Computer Science,DP-2026-0001\n";
+
+        let rows = parse_csv(csv).expect("csv without header should parse");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].diploma_number, "DP-2026-0001");
+    }
 }
