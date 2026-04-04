@@ -6,17 +6,26 @@ export const studentService = {
     return response.data
   },
 
+  // Поиск дипломов (единственный способ для студента)
   async searchDiplomas(diplomaNumber, studentFullName) {
-    const response = await api.post('/api/v1/student/search', {
-      diploma_number: diplomaNumber,
-      student_full_name: studentFullName
-    })
+    const payload = {}
+    if (diplomaNumber && diplomaNumber.trim()) {
+      payload.diploma_number = diplomaNumber.trim()
+    }
+    if (studentFullName && studentFullName.trim()) {
+      payload.student_full_name = studentFullName.trim()
+    }
+    
+    const response = await api.post('/api/v1/student/search', payload)
     return response.data
   },
 
+  // У студента НЕТ эндпоинта для получения всех дипломов
+  // Вместо этого используем поиск
   async getMyDiplomas() {
-    const response = await api.post('/api/v1/student/search', {})
-    return response.data
+    // Возвращаем пустой массив — студент должен искать через searchDiplomas
+    console.warn('⚠️ Студент не может получить список всех дипломов. Используйте searchDiplomas()')
+    return { items: [] }
   },
 
   async generateShareLink(diplomaId) {

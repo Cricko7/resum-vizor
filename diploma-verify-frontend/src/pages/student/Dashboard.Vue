@@ -68,37 +68,8 @@
         </div>
 
         <div v-else-if="searched && searchResults.length === 0" class="no-results">
-          <p>Дипломы не найдены. Проверьте правильность введённых данных.</p>
-        </div>
-      </div>
-
-      <!-- Мои дипломы (уже привязанные) -->
-      <div v-if="myDiplomas.length > 0" class="my-diplomas-card">
-        <h2>📜 Мои дипломы</h2>
-        <div class="diplomas-grid">
-          <div v-for="diploma in myDiplomas" :key="diploma.diploma_id" class="diploma-card">
-            <div class="diploma-header">
-              <span class="diploma-icon">🎓</span>
-              <span class="diploma-status" :class="diploma.status">
-                {{ diploma.status === 'active' ? 'Активен' : 'Аннулирован' }}
-              </span>
-            </div>
-            <div class="diploma-body">
-              <h3>{{ diploma.program_name || 'Диплом' }}</h3>
-              <p>№ диплома: ****{{ diploma.diploma_number_last4 }}</p>
-              <p>ВУЗ: {{ diploma.university_code }}</p>
-              <p>Год выпуска: {{ diploma.graduation_date }}</p>
-            </div>
-            <div class="diploma-footer">
-              <button 
-                v-if="diploma.status === 'active'"
-                class="btn-share" 
-                @click="generateShareLink(diploma.diploma_id)"
-              >
-                📤 Поделиться
-              </button>
-            </div>
-          </div>
+          <p>❌ Дипломы не найдены</p>
+          <p class="hint">Проверьте правильность введённых данных</p>
         </div>
       </div>
 
@@ -122,12 +93,6 @@
             <button @click="showShareModal = false" class="close-btn">Закрыть</button>
           </div>
         </div>
-      </div>
-
-      <!-- Состояние загрузки -->
-      <div v-if="loading" class="loading-overlay">
-        <div class="spinner"></div>
-        <p>Загрузка...</p>
       </div>
     </div>
   </div>
@@ -157,11 +122,9 @@ const userInitials = computed(() => {
 const ttlMinutes = ref(30)
 
 // Состояние
-const myDiplomas = ref([])
 const searchResults = ref([])
 const searching = ref(false)
 const searched = ref(false)
-const loading = ref(false)
 const showShareModal = ref(false)
 const shareUrl = ref('')
 const qrCanvasRef = ref(null)
@@ -171,24 +134,7 @@ const searchQuery = ref({
   student_full_name: ''
 })
 
-// Загрузка моих дипломов (уже привязанных)
-const loadMyDiplomas = async () => {
-  loading.value = true
-  try {
-    const response = await studentService.getMyDiplomas()
-    myDiplomas.value = response.items || []
-  } catch (error) {
-    console.error('Ошибка загрузки дипломов:', error)
-    $q.notify({
-      type: 'negative',
-      message: error.response?.data?.message || 'Ошибка загрузки дипломов'
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-// Поиск дипломов (с авто-привязкой)
+// Поиск дипломов
 const searchDiplomas = async () => {
   if (!searchQuery.value.diploma_number && !searchQuery.value.student_full_name) {
     $q.notify({
@@ -216,10 +162,8 @@ const searchDiplomas = async () => {
     } else {
       $q.notify({
         type: 'positive',
-        message: `Найдено ${searchResults.value.length} диплом(ов). Они автоматически привязаны к вашему аккаунту!`
+        message: `Найдено ${searchResults.value.length} диплом(ов)`
       })
-      // Обновляем список моих дипломов после успешного поиска/привязки
-      await loadMyDiplomas()
     }
   } catch (error) {
     console.error('Ошибка поиска:', error)
@@ -302,10 +246,6 @@ const downloadQR = () => {
     message: 'QR-код скачан!'
   })
 }
-
-onMounted(() => {
-  loadMyDiplomas()
-})
 </script>
 
 <style scoped>
@@ -313,7 +253,6 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   padding: 30px 0;
-  position: relative;
 }
 
 .container {
@@ -322,7 +261,6 @@ onMounted(() => {
   padding: 0 20px;
 }
 
-/* Welcome Card */
 .welcome-card {
   background: white;
   border-radius: 20px;
@@ -360,8 +298,7 @@ onMounted(() => {
   color: #666;
 }
 
-/* Search Card */
-.search-card, .my-diplomas-card {
+.search-card {
   background: white;
   border-radius: 20px;
   padding: 30px;
@@ -369,7 +306,7 @@ onMounted(() => {
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
-.search-card h2, .my-diplomas-card h2 {
+.search-card h2 {
   margin: 0 0 10px 0;
   color: #333;
 }
@@ -425,7 +362,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* Results */
 .results {
   margin-top: 30px;
 }
@@ -506,82 +442,6 @@ onMounted(() => {
   color: #666;
 }
 
-/* My Diplomas Grid */
-.diplomas-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.diploma-card {
-  background: #f8f9fa;
-  border-radius: 16px;
-  overflow: hidden;
-  transition: all 0.3s;
-}
-
-.diploma-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-}
-
-.diploma-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.diploma-icon {
-  font-size: 24px;
-}
-
-.diploma-status {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  background: rgba(255,255,255,0.2);
-}
-
-.diploma-body {
-  padding: 20px;
-}
-
-.diploma-body h3 {
-  margin: 0 0 10px 0;
-  color: #333;
-}
-
-.diploma-body p {
-  margin: 5px 0;
-  color: #666;
-  font-size: 14px;
-}
-
-.diploma-footer {
-  padding: 15px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.btn-share {
-  width: 100%;
-  padding: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.btn-share:hover {
-  transform: translateY(-2px);
-}
-
-/* Modal */
 .modal {
   position: fixed;
   top: 0;
@@ -667,31 +527,25 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
-/* Loading overlay */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255,255,255,0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+@media (max-width: 768px) {
+  .welcome-content {
+    flex-direction: column;
+    text-align: center;
+  }
 
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid #e2e8f0;
-  border-top-color: #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
+  .search-form {
+    flex-direction: column;
+  }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+  .diploma-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+
+  .diploma-details {
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 </style>
