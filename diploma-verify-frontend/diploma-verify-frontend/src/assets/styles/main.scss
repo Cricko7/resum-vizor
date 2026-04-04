@@ -1,0 +1,282 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
+
+:root {
+  --bg: #f3f8fc;
+  --bg-secondary: rgba(255, 255, 255, 0.58);
+  --surface: rgba(255, 255, 255, 0.56);
+  --surface-strong: rgba(255, 255, 255, 0.76);
+  --surface-soft: rgba(248, 252, 255, 0.4);
+  --surface-border: rgba(255, 255, 255, 0.5);
+  --surface-stroke: rgba(148, 163, 184, 0.18);
+  --ink: #102033;
+  --ink-soft: #4f6477;
+  --ink-muted: #6b7f92;
+  --teal: #0f766e;
+  --cyan: #0ea5e9;
+  --blue: #2563eb;
+  --orange: #fb923c;
+  --danger: #dc2626;
+  --success: #15803d;
+  --warning: #b45309;
+  --shadow-lg: 0 24px 80px rgba(15, 23, 42, 0.14);
+  --shadow-md: 0 18px 40px rgba(15, 23, 42, 0.1);
+  --shadow-sm: 0 10px 20px rgba(148, 163, 184, 0.18);
+  --radius-xl: 32px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(103, 232, 249, 0.28), transparent 32%),
+    radial-gradient(circle at 86% 14%, rgba(59, 130, 246, 0.2), transparent 24%),
+    radial-gradient(circle at 60% 82%, rgba(251, 191, 36, 0.16), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5fb 46%, #f7fafc 100%);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.44), transparent 32%),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.18), transparent 62%);
+  z-index: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  border: none;
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.18);
+  color: var(--ink);
+}
+
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 3vw, 36px);
+}
+
+.page-shell {
+  padding: 36px 0 56px;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42));
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-radius: var(--radius-lg);
+}
+
+.glass-panel--strong {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.56));
+  box-shadow: var(--shadow-lg);
+}
+
+.glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.liquid-button,
+.liquid-button-secondary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.liquid-button {
+  color: white;
+  background: linear-gradient(135deg, var(--teal), var(--cyan) 52%, var(--blue));
+  box-shadow: 0 18px 28px rgba(14, 165, 233, 0.24);
+}
+
+.liquid-button::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.liquid-button-secondary {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow: var(--shadow-sm);
+}
+
+.liquid-button:hover,
+.liquid-button-secondary:hover {
+  transform: translateY(-2px);
+}
+
+.liquid-button:disabled,
+.liquid-button-secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.glass-input,
+.glass-select,
+.glass-textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.glass-input:focus,
+.glass-select:focus,
+.glass-textarea:focus {
+  outline: none;
+  border-color: rgba(14, 165, 233, 0.48);
+  box-shadow:
+    0 0 0 4px rgba(14, 165, 233, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.glass-input::placeholder,
+.glass-textarea::placeholder {
+  color: var(--ink-muted);
+}
+
+.section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.section-heading h1,
+.section-heading h2,
+.section-heading h3 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  color: var(--ink);
+  letter-spacing: -0.03em;
+}
+
+.section-heading p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.data-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.data-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.data-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.soft-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.28), transparent);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-fade-enter-active {
+  transition: all 0.28s ease;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(16px);
+  opacity: 0;
+}
+
+@media (max-width: 960px) {
+  .data-grid--3,
+  .data-grid--2 {
+    grid-template-columns: 1fr;
+  }
+
+  .page-shell {
+    padding: 24px 0 40px;
+  }
+}
