@@ -22,7 +22,7 @@
 - `Redis`
 
 `in-memory` persistence сохранен для тестов и быстрых unit/integration-style сценариев.
-`Redis` используется там, где он дает максимальный операционный профит: распределенный rate limiting для HR automation endpoint в multi-instance deployment.
+`Redis` используется для двух production-полезных задач: распределенного rate limiting для machine-to-machine endpoints и response caching для read-heavy verification/search сценариев в multi-instance deployment.
 
 ## Содержание
 
@@ -142,7 +142,7 @@ flowchart LR
     B --> D["Application Ports"]
     D --> E["Infrastructure: Postgres Repository"]
     D --> F["Infrastructure: InMemory Repository"]
-    B --> G["Infrastructure: JWT / Hashing / Signing / Redis Rate Limit"]
+    B --> G["Infrastructure: JWT / Hashing / Signing / Redis Rate Limit / Response Cache"]
 ```
 
 ### Почему так
@@ -229,11 +229,21 @@ src/
   error.rs
   main.rs
   application/
-    dto.rs
+    dto_mod.rs
+    dto_auth.rs
+    dto_diploma.rs
+    dto_student.rs
+    dto_hr.rs
+    dto_ats.rs
     mod.rs
     ports.rs
-    services.rs
+    services_mod.rs
+    services_auth.rs
+    services_ats.rs
+    services_diploma.rs
+    services_support.rs
   domain/
+    ats.rs
     diploma.rs
     hashing.rs
     ids.rs
@@ -243,6 +253,7 @@ src/
   http/
     auth.rs
     common.rs
+    docs.rs
     hr.rs
     middleware.rs
     mod.rs
@@ -250,8 +261,11 @@ src/
     student.rs
     university.rs
   infrastructure/
+    api_keys.rs
     auth.rs
+    cache.rs
     hashing.rs
+    metrics.rs
     mod.rs
     rate_limit.rs
     signing.rs
@@ -261,14 +275,19 @@ src/
       postgres.rs
 migrations/
   0001_init.sql
+tests/
+  http_api.rs
 ```
 
 Ключевые файлы:
 
 - [app.rs](/D:/Programming/Resume-visitor/src/app.rs) — bootstrap приложения
 - [config.rs](/D:/Programming/Resume-visitor/src/config.rs) — конфигурация из env
-- [services.rs](/D:/Programming/Resume-visitor/src/application/services.rs) — основная бизнес-логика
+- [services_mod.rs](/D:/Programming/Resume-visitor/src/application/services_mod.rs) — входная точка application services
+- [services_diploma.rs](/D:/Programming/Resume-visitor/src/application/services_diploma.rs) — логика дипломов, verify/search/share-link и cache invalidation
 - [router.rs](/D:/Programming/Resume-visitor/src/http/router.rs) — все маршруты
+- [docs.rs](/D:/Programming/Resume-visitor/src/http/docs.rs) — OpenAPI/Swagger описание
+- [cache.rs](/D:/Programming/Resume-visitor/src/infrastructure/cache.rs) — response cache с Redis/in-memory backend
 - [postgres.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/postgres.rs) — PostgreSQL persistence
 - [in_memory.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/in_memory.rs) — тестовое storage
 - [0001_init.sql](/D:/Programming/Resume-visitor/migrations/0001_init.sql) — миграция базы
@@ -296,6 +315,7 @@ cargo --version
 | `APP_PORT` | да | `8080` | HTTP порт приложения |
 | `APP_BASE_URL` | да | `http://localhost:8080` | базовый URL, используется для генерации share-link |
 | `RUST_LOG` | нет | `info,tower_http=info` | уровень логирования |
+| `REQUEST_CACHE_TTL_SECONDS` | нет | `60` | TTL response cache для verify/search/public-view сценариев |
 | `HR_API_RATE_LIMIT_REQUESTS` | да | `60` | сколько запросов разрешено в automation endpoint за окно |
 | `HR_API_RATE_LIMIT_WINDOW_SECONDS` | да | `60` | длина окна rate limit |
 | `INTEGRATION_API_KEY_BURST_WINDOW_SECONDS` | да | `10` | окно burst limiter для защиты от серии запросов подряд |
@@ -304,8 +324,9 @@ cargo --version
 | `INTEGRATION_API_KEY_COMBINED_BURST_LIMIT` | да | `40` | сколько запросов можно сделать за burst-window ключом `combined` |
 | `DATABASE_URL` | да | `postgres://postgres:postgres@localhost:5432/resume_vizor` | строка подключения к PostgreSQL |
 | `DATABASE_MAX_CONNECTIONS` | да | `10` | размер пула подключений |
-| `REDIS_URL` | нет | `redis://localhost:6379` | Redis для распределенного rate limit на `/api/v1/hr/automation/verify`; если не задан, используется `in-memory` fallback |
+| `REDIS_URL` | нет | `redis://localhost:6379` | Redis для distributed rate limiting и response caching; если не задан, используется `in-memory` fallback |
 | `REDIS_RATE_LIMIT_PREFIX` | нет | `resume_vizor:hr_rate_limit` | префикс ключей rate limiter-а в Redis |
+| `REDIS_CACHE_PREFIX` | нет | `resume_vizor:request_cache` | префикс ключей response cache в Redis |
 | `DIPLOMA_HASH_KEY` | да | `replace-with-a-long-random-secret` | секрет для keyed hashing полей диплома |
 | `JWT_SECRET` | да | `replace-with-another-long-random-secret` | секрет для access token и share token |
 | `ATS_API_KEY_SECRET` | да | `replace-with-ats-api-key-secret` | секрет для генерации и хеширования ATS API keys |
@@ -319,6 +340,7 @@ cargo --version
 APP_PORT=8080
 APP_BASE_URL=http://localhost:8080
 RUST_LOG=info,tower_http=info
+REQUEST_CACHE_TTL_SECONDS=60
 HR_API_RATE_LIMIT_REQUESTS=60
 HR_API_RATE_LIMIT_WINDOW_SECONDS=60
 INTEGRATION_API_KEY_BURST_WINDOW_SECONDS=10
@@ -329,6 +351,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/resume_vizor
 DATABASE_MAX_CONNECTIONS=10
 REDIS_URL=redis://localhost:6379
 REDIS_RATE_LIMIT_PREFIX=resume_vizor:hr_rate_limit
+REDIS_CACHE_PREFIX=resume_vizor:request_cache
 DIPLOMA_HASH_KEY=replace-with-a-long-random-secret
 JWT_SECRET=replace-with-another-long-random-secret
 ATS_API_KEY_SECRET=replace-with-ats-api-key-secret
@@ -381,12 +404,13 @@ docker compose down -v
 ### 8.2 Что делает Docker Compose
 
 - поднимает PostgreSQL 16
-- поднимает Redis 7 для distributed rate limiting
+- поднимает Redis 7 для distributed rate limiting и response caching
 - ждет healthcheck базы
 - ждет healthcheck Redis
 - собирает backend через multi-stage Docker build
 - запускает backend с переменными окружения для подключения к контейнерной БД
 - включает Redis-backed limiter для integration API keys
+- включает Redis-backed response cache для read-heavy endpoints
 - проверяет readiness backend через `/health/ready`
 - поднимает Prometheus с готовым scrape config
 - поднимает Grafana с заранее настроенным datasource и dashboard
@@ -455,7 +479,7 @@ cargo build --release
 
 ## 9. Тесты
 
-Тесты используют `in-memory` repository, а не PostgreSQL.
+Тесты используют `in-memory` repository и реальный `axum` router для сквозных HTTP-сценариев без поднятия PostgreSQL.
 
 Запуск:
 
@@ -473,6 +497,11 @@ cargo test
 - revoke / restore
 - HR search
 - rate limiter
+- response cache
+- smoke на `health` и OpenAPI
+- HTTP integration tests для auth-flow
+- HTTP integration tests для `university -> student -> public link`
+- HTTP integration tests для machine-to-machine `ATS` и `HR automation`
 
 ## 10. Общие правила API
 
@@ -529,6 +558,15 @@ role: student
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
+
+### 10.6 Swagger / OpenAPI
+
+Интерактивная документация доступна по адресам:
+
+- `GET /swagger-ui`
+- `GET /api-docs/openapi.json`
+
+Swagger UI удобно использовать для ручной проверки API во время демо и локальной разработки.
 
 ## 11. Полное описание API
 
@@ -1195,7 +1233,21 @@ GET /metrics
 
 - [metrics.rs](/D:/Programming/Resume-visitor/src/infrastructure/metrics.rs)
 
-### 12.2 Health probes
+### 12.2 Response cache
+
+Для read-heavy сценариев используется response cache:
+
+- `verify_diploma`
+- `search_hr_registry`
+- `public_diploma_view`
+
+Поведение:
+
+- при наличии `REDIS_URL` используется Redis-backed cache
+- без Redis приложение автоматически переключается на `in-memory` fallback
+- при изменении дипломов cache инвалидируется через namespace versioning, так что старые cached entries перестают использоваться без полного scan/delete по ключам
+
+### 12.3 Health probes
 
 Для инфраструктурного мониторинга и orchestration доступны:
 
@@ -1209,7 +1261,16 @@ GET /metrics
 - `ready`
   - использовать как readiness probe
 
-### 12.3 Локальный observability stack через Docker Compose
+### 12.4 Graceful shutdown
+
+Сервер завершает работу корректно:
+
+- по `Ctrl+C`
+- по `SIGTERM` на Unix-системах
+
+Во время graceful shutdown `axum` перестает принимать новые соединения и дает активным запросам завершиться штатно.
+
+### 12.5 Локальный observability stack через Docker Compose
 
 В репозитории уже добавлены:
 
@@ -1236,7 +1297,7 @@ Grafana уже автоматически:
 3. убедиться, что job `resume-vizor-backend` имеет статус `UP`
 4. открыть Grafana и найти dashboard `Resume Vizor Overview`
 
-### 12.4 Docker / Compose рекомендации
+### 12.6 Docker / Compose рекомендации
 
 Для контейнерного запуска рекомендуется:
 
@@ -1244,7 +1305,7 @@ Grafana уже автоматически:
 - readiness probe на `/health/ready`
 - Prometheus scraping на `/metrics`
 
-### 12.5 Пример scrape config для Prometheus
+### 12.7 Пример scrape config для Prometheus
 
 ```yaml
 scrape_configs:
@@ -1255,7 +1316,7 @@ scrape_configs:
           - localhost:8080
 ```
 
-### 12.6 Пример probes для Kubernetes
+### 12.8 Пример probes для Kubernetes
 
 ```yaml
 livenessProbe:
@@ -1433,13 +1494,12 @@ sequenceDiagram
 
 - QR-коды
 - отдельные публичные verification keys для вузов
-- distributed rate limiter
-- OpenAPI / Swagger
-- интеграционные тесты с реальной PostgreSQL
- - отдельные бизнес-метрики уровня домена:
-   - количество выданных дипломов
-   - количество аннулированных дипломов
-   - количество автопривязок студентов
+- интеграционные тесты с реальной PostgreSQL / testcontainers
+- refresh tokens / session management
+- отдельные бизнес-метрики уровня домена:
+  - количество выданных дипломов
+  - количество аннулированных дипломов
+  - количество автопривязок студентов
 
 ## Полезные команды
 
@@ -1475,4 +1535,8 @@ cargo run
 - поднимается через PostgreSQL по умолчанию
 - автоматически применяет миграции
 - имеет тесты на бизнес-логику
+- имеет HTTP integration tests поверх реального router
 - сохраняет `in-memory` repository для тестов
+- экспортирует Swagger / OpenAPI
+- использует Redis для distributed rate limiting и response caching
+- поддерживает graceful shutdown
