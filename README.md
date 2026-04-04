@@ -311,6 +311,10 @@ tests/
 - [docs.rs](/D:/Programming/Resume-visitor/src/http/docs.rs) — OpenAPI/Swagger описание
 - [cache.rs](/D:/Programming/Resume-visitor/src/infrastructure/cache.rs) — response cache с Redis/in-memory backend
 - [qr_client.rs](/D:/Programming/Resume-visitor/src/infrastructure/qr_client.rs) — HTTP-клиент к внешнему QR-сервису с таймаутами
+- [services/qr-service/main.go](/D:/Programming/Resume-visitor/services/qr-service/main.go) — встроенная reference-реализация QR-сервиса на Go
+- [services/qr-service/internal/config/config.go](/D:/Programming/Resume-visitor/services/qr-service/internal/config/config.go) — env-конфиг QR-сервиса
+- [services/qr-service/internal/httpapi/router.go](/D:/Programming/Resume-visitor/services/qr-service/internal/httpapi/router.go) — HTTP-слой QR-сервиса
+- [services/qr-service/internal/service/service.go](/D:/Programming/Resume-visitor/services/qr-service/internal/service/service.go) — бизнес-логика QR-сервиса
 - [postgres.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/postgres.rs) — PostgreSQL persistence
 - [in_memory.rs](/D:/Programming/Resume-visitor/src/infrastructure/persistence/in_memory.rs) — тестовое storage
 - [0001_init.sql](/D:/Programming/Resume-visitor/migrations/0001_init.sql) — миграция базы
@@ -412,6 +416,7 @@ docker compose up --build
 
 - `postgres` на `localhost:5432`
 - `redis` на `localhost:6379`
+- `qr-service` на `localhost:8090`
 - backend на `http://localhost:8080`
 - `prometheus` на `http://localhost:9090`
 - `grafana` на `http://localhost:3000`
@@ -437,8 +442,10 @@ docker compose down -v
 
 - поднимает PostgreSQL 16
 - поднимает Redis 7 для distributed rate limiting и response caching
+- поднимает встроенный QR-сервис на Go
 - ждет healthcheck базы
 - ждет healthcheck Redis
+- конфигурирует QR-сервис через env, без хардкода ключей и путей
 - собирает backend через multi-stage Docker build
 - запускает backend с переменными окружения для подключения к контейнерной БД
 - включает Redis-backed limiter для integration API keys

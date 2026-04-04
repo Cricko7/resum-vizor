@@ -4,3 +4,4 @@
 /.vscode
 .git.broken/
 *.log
+/services/qr-service/.gocache/

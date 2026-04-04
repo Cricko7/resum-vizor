@@ -32,6 +32,23 @@ services:
       timeout: 5s
       retries: 10
 
+  qr-service:
+    build:
+      context: .
+      dockerfile: services/qr-service/Dockerfile
+    container_name: resume-vizor-qr-service
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      QR_SERVICE_PORT: 8090
+      QR_STORAGE_DIR: /app/data
+      QR_SERVICE_API_KEY: service_api_key
+      QR_PUBLIC_BASE_URL: http://localhost:8090
+      QR_DEFAULT_SIZE: 512
+    volumes:
+      - qr_service_data:/app/data
+
   backend:
     build:
       context: .
@@ -43,6 +60,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      qr-service:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
       interval: 10s
@@ -67,6 +86,10 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_RATE_LIMIT_PREFIX: resume_vizor:hr_rate_limit
       REDIS_CACHE_PREFIX: resume_vizor:request_cache
+      QR_SERVICE_BASE_URL: http://qr-service:8090
+      QR_SERVICE_API_KEY: service_api_key
+      QR_SERVICE_CONNECT_TIMEOUT_SECONDS: 3
+      QR_SERVICE_REQUEST_TIMEOUT_SECONDS: 10
       DIPLOMA_HASH_KEY: replace-with-a-long-random-secret
       JWT_SECRET: replace-with-another-long-random-secret
       ATS_API_KEY_SECRET: replace-with-ats-api-key-secret
@@ -107,3 +130,4 @@ services:
 volumes:
   postgres_data:
   grafana_data:
+  qr_service_data:
