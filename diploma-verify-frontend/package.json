@@ -12,6 +12,7 @@
     "@quasar/extras": "^1.17.0",
     "axios": "^1.14.0",
     "dayjs": "^1.11.20",
+    "html5-qrcode": "^2.3.8",
     "jwt-decode": "^4.0.0",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",

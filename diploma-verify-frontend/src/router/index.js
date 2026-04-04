@@ -7,7 +7,7 @@ import LoginPage from '../pages/LoginPage.vue'
 import RegisterPage from '../pages/RegisterPage.vue'
 import NotFoundPage from '../pages/NotFoundPage.vue'
 
-// Заглушки для защищённых страниц (будут заменены в следующих этапах)
+// Защищённые страницы
 import UniversityDashboard from '../pages/university/Dashboard.vue'
 import StudentDashboard from '../pages/student/Dashboard.vue'
 import HRVerify from '../pages/hr/VerifyPage.vue'
