@@ -1,8 +1,10 @@
 use axum::{Router, middleware, routing::{get, post}};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::http::{
-    AppState, auth, common, hr,
+    AppState, auth, common, docs::ApiDoc, hr,
     middleware::{require_hr_role, require_student_role, require_university_role},
     student, university,
 };
@@ -45,6 +47,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health/ready", get(common::readiness_check))
         .route("/metrics", get(common::metrics_handler))
         .route("/api/v1/public/diplomas/access/{token}", get(common::public_diploma_access))
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .nest("/api/v1/auth", auth_routes)
         .nest("/api/v1/university", university_routes)
         .nest("/api/v1/student", student_routes)

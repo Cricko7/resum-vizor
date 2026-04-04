@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::domain::{
     ats::{AtsApiKey, IntegrationApiScope},
@@ -7,13 +8,13 @@ use crate::domain::{
 
 use super::dto_diploma::PublicDiplomaView;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateAtsApiKeyRequest {
     pub name: String,
     pub scope: IntegrationApiScope,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AtsApiKeySummary {
     pub api_key_id: AtsApiKeyId,
     pub name: String,
@@ -47,7 +48,7 @@ impl From<AtsApiKey> for AtsApiKeySummary {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct CreateAtsApiKeyResponse {
     pub api_key_id: AtsApiKeyId,
     pub name: String,
@@ -60,12 +61,12 @@ pub struct CreateAtsApiKeyResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AtsApiKeyListResponse {
     pub items: Vec<AtsApiKeySummary>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct AtsVerifyRequest {
     pub diploma_number: Option<String>,
     pub university_code: Option<String>,
@@ -73,7 +74,7 @@ pub struct AtsVerifyRequest {
     pub resume_reference: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AtsVerificationDecision {
     Verified,
@@ -81,7 +82,7 @@ pub enum AtsVerificationDecision {
     NotFound,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AtsVerifyResponse {
     pub decision: AtsVerificationDecision,
     pub verified: bool,

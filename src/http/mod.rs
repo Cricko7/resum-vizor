@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod common;
+pub mod docs;
 pub mod hr;
 pub mod middleware;
 mod router;

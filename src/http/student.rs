@@ -9,10 +9,24 @@ use crate::{
         UserResponse,
     },
     domain::ids::DiplomaId,
-    error::AppError,
+    error::{AppError, ErrorBody},
     http::{AppState, middleware::AuthenticatedUser},
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/student/profile",
+    tag = "Student",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'student'")
+    ),
+    responses(
+        (status = 200, description = "Student profile", body = UserResponse),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody)
+    )
+)]
 pub async fn profile(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,
@@ -21,6 +35,22 @@ pub async fn profile(
     Ok(Json(user.into()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/student/search",
+    tag = "Student",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'student'")
+    ),
+    request_body = StudentDiplomaSearchRequest,
+    responses(
+        (status = 200, description = "Student diploma search results", body = StudentDiplomaSearchResponse),
+        (status = 400, description = "Validation error", body = ErrorBody),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody)
+    )
+)]
 pub async fn search_my_diplomas(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,
@@ -33,6 +63,22 @@ pub async fn search_my_diplomas(
     Ok(Json(result))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/student/diplomas/{diploma_id}/share-link",
+    tag = "Student",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'student'"),
+        ("diploma_id" = DiplomaId, Path, description = "Diploma identifier")
+    ),
+    responses(
+        (status = 200, description = "Temporary diploma share link generated", body = DiplomaShareLinkResponse),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody),
+        (status = 404, description = "Diploma not found", body = ErrorBody)
+    )
+)]
 pub async fn generate_share_link(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,

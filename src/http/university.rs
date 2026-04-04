@@ -12,10 +12,26 @@ use crate::{
         RegisterDiplomaResponse, RegistryDiplomaRow,
     },
     domain::ids::DiplomaId,
-    error::AppError,
+    error::{AppError, ErrorBody},
     http::{AppState, middleware::AuthenticatedUser},
 };
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/university/diplomas",
+    tag = "University",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'university'")
+    ),
+    request_body = RegisterDiplomaRequest,
+    responses(
+        (status = 200, description = "Diploma registered", body = RegisterDiplomaResponse),
+        (status = 400, description = "Validation error", body = ErrorBody),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody)
+    )
+)]
 pub async fn register_diploma(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,
@@ -36,6 +52,26 @@ pub async fn register_diploma(
     Ok(Json(diploma.into()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/university/diplomas/import",
+    tag = "University",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'university'")
+    ),
+    request_body(
+        content = crate::http::docs::ImportDiplomasMultipartRequest,
+        content_type = "multipart/form-data",
+        description = "Registry file in CSV or XLSX format"
+    ),
+    responses(
+        (status = 200, description = "Registry imported", body = DiplomaImportResponse),
+        (status = 400, description = "Validation error", body = ErrorBody),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody)
+    )
+)]
 pub async fn import_diplomas(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,
@@ -76,6 +112,22 @@ pub async fn import_diplomas(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/university/diplomas/{diploma_id}/revoke",
+    tag = "University",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'university'"),
+        ("diploma_id" = DiplomaId, Path, description = "Diploma identifier")
+    ),
+    responses(
+        (status = 200, description = "Diploma revoked", body = DiplomaStatusResponse),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody),
+        (status = 404, description = "Diploma not found", body = ErrorBody)
+    )
+)]
 pub async fn revoke_diploma(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,
@@ -98,6 +150,22 @@ pub async fn revoke_diploma(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/university/diplomas/{diploma_id}/restore",
+    tag = "University",
+    security(("bearer_auth" = [])),
+    params(
+        ("role" = String, Header, description = "Must be 'university'"),
+        ("diploma_id" = DiplomaId, Path, description = "Diploma identifier")
+    ),
+    responses(
+        (status = 200, description = "Diploma restored", body = DiplomaStatusResponse),
+        (status = 401, description = "Unauthorized", body = ErrorBody),
+        (status = 403, description = "Forbidden", body = ErrorBody),
+        (status = 404, description = "Diploma not found", body = ErrorBody)
+    )
+)]
 pub async fn restore_diploma(
     State(state): State<AppState>,
     authenticated: AuthenticatedUser,

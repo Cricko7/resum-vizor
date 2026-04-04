@@ -1,12 +1,13 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::domain::{
     diploma::{Diploma, DiplomaStatus, DiplomaVerificationResult},
     ids::{CertificateId, DiplomaId, UniversityId},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct RegisterDiplomaRequest {
     pub student_full_name: String,
     pub student_number: String,
@@ -19,7 +20,7 @@ pub struct RegisterDiplomaRequest {
     pub honors: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct RegisterDiplomaResponse {
     pub diploma_id: DiplomaId,
     pub certificate_id: CertificateId,
@@ -48,7 +49,7 @@ impl From<Diploma> for RegisterDiplomaResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiplomaImportRowResult {
     pub row_number: usize,
     pub diploma_id: DiplomaId,
@@ -57,13 +58,13 @@ pub struct DiplomaImportRowResult {
     pub university_signature: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiplomaImportError {
     pub row_number: usize,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiplomaImportResponse {
     pub imported_count: usize,
     pub failed_count: usize,
@@ -80,14 +81,14 @@ pub struct RegistryDiplomaRow {
     pub diploma_number: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct VerifyDiplomaRequest {
     pub student_full_name: String,
     pub student_birth_date: Option<NaiveDate>,
     pub diploma_number: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct VerifyDiplomaResponse {
     pub found: bool,
     pub diploma_id: Option<DiplomaId>,
@@ -106,14 +107,14 @@ impl From<DiplomaVerificationResult> for VerifyDiplomaResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiplomaStatusResponse {
     pub diploma_id: DiplomaId,
     pub status: DiplomaStatus,
     pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PublicDiplomaView {
     pub diploma_id: DiplomaId,
     pub certificate_id: CertificateId,

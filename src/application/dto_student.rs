@@ -1,17 +1,18 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::domain::{
     diploma::{Diploma, DiplomaStatus},
     ids::{CertificateId, DiplomaId, UniversityId},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct StudentDiplomaSearchRequest {
     pub diploma_number: Option<String>,
     pub student_full_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct StudentDiplomaCard {
     pub diploma_id: DiplomaId,
     pub certificate_id: CertificateId,
@@ -46,12 +47,12 @@ impl From<Diploma> for StudentDiplomaCard {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct StudentDiplomaSearchResponse {
     pub items: Vec<StudentDiplomaCard>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct DiplomaShareLinkResponse {
     pub diploma_id: DiplomaId,
     pub expires_in_seconds: i64,
