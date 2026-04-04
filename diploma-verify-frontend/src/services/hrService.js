@@ -1,7 +1,7 @@
 import api from './api'
 
 export const hrService = {
-  // Ручная проверка диплома
+  // Ручная проверка диплома по ФИО + дата рождения + номер
   async verifyDiploma(studentFullName, studentBirthDate, diplomaNumber) {
     const response = await api.post('/api/v1/hr/verify', {
       student_full_name: studentFullName,
@@ -11,17 +11,17 @@ export const hrService = {
     return response.data
   },
 
-  // Проверка по токену (из QR)
-  async verifyByToken(token, fio, diplomaNumber) {
+  // Проверка по токену (из QR-кода)
+  async verifyByToken(token, studentFullName, diplomaNumber) {
     const response = await api.post('/api/v1/hr/verify', {
       token: token,
-      student_full_name: fio,
+      student_full_name: studentFullName,
       diploma_number: diplomaNumber
     })
     return response.data
   },
 
-  // Поиск по реестру
+  // Поиск по реестру (номер диплома + код ВУЗа)
   async searchRegistry(diplomaNumber, universityCode) {
     const response = await api.post('/api/v1/hr/registry/search', {
       diploma_number: diplomaNumber,
@@ -30,7 +30,7 @@ export const hrService = {
     return response.data
   },
 
-  // Automation endpoint (с rate limiter)
+  // Automation endpoint (с rate limiter для ATS)
   async automateVerify(diplomaNumber, universityCode) {
     const response = await api.post('/api/v1/hr/automation/verify', {
       diploma_number: diplomaNumber,
@@ -47,7 +47,7 @@ export const hrService = {
     return response.data
   },
 
-  // Получить статистику
+  // Получить статистику проверок
   async getStatistics() {
     const response = await api.get('/api/v1/hr/statistics')
     return response.data

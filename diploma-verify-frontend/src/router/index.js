@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@stores/auth'
 
-// Импорты страниц
+// Импорты страниц (проверьте что пути правильные)
 import HomePage from '../pages/HomePage.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import RegisterPage from '../pages/RegisterPage.vue'
@@ -30,7 +30,6 @@ const routes = [
     component: RegisterPage,
     meta: { guestOnly: true }
   },
-  // Защищённые маршруты
   {
     path: '/university/dashboard',
     name: 'UniversityDashboard',
@@ -65,12 +64,10 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
-  // Загружаем пользователя если есть токен
   if (authStore.token && !authStore.user) {
     await authStore.fetchMe()
   }
   
-  // Проверка на гостевые страницы (нельзя заходить если уже авторизован)
   if (to.meta.guestOnly && authStore.isAuthenticated) {
     const role = authStore.user?.role
     if (role === 'university') {
@@ -85,13 +82,11 @@ router.beforeEach(async (to, from, next) => {
     return
   }
   
-  // Проверка авторизации
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
     return
   }
   
-  // Проверка роли
   if (to.meta.role && authStore.user?.role !== to.meta.role) {
     next('/')
     return

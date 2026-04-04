@@ -1,6 +1,5 @@
 <template>
   <div class="university-dashboard">
-    <!-- Приветствие -->
     <div class="welcome-header">
       <h1>Добро пожаловать, {{ user?.full_name }}</h1>
       <p class="subtitle">Управление дипломами вашего учебного заведения</p>
@@ -10,17 +9,17 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">📜</div>
-        <div class="stat-number">{{ stats.total }}</div>
+        <div class="stat-number">{{ stats.total || 0 }}</div>
         <div class="stat-label">Всего дипломов</div>
       </div>
       <div class="stat-card success">
         <div class="stat-icon">✅</div>
-        <div class="stat-number">{{ stats.active }}</div>
+        <div class="stat-number">{{ stats.active || 0 }}</div>
         <div class="stat-label">Активных</div>
       </div>
       <div class="stat-card danger">
         <div class="stat-icon">⚠️</div>
-        <div class="stat-number">{{ stats.revoked }}</div>
+        <div class="stat-number">{{ stats.revoked || 0 }}</div>
         <div class="stat-label">Аннулированных</div>
       </div>
     </div>
@@ -47,19 +46,23 @@
         />
       </div>
 
-      <div v-if="loading" class="loading">Загрузка...</div>
+      <div v-if="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
+      </div>
       
       <div v-else-if="diplomas.length === 0" class="empty-state">
         <p>Нет загруженных дипломов</p>
       </div>
 
       <div v-else class="diploma-table">
-        <div v-for="diploma in filteredDiplomas" :key="diploma.id" class="diploma-row">
+        <div v-for="diploma in filteredDiplomas" :key="diploma.diploma_id" class="diploma-row">
           <div class="diploma-info">
             <div class="diploma-name">{{ diploma.student_full_name || 'Студент' }}</div>
             <div class="diploma-details">
-              <span>№ диплома: {{ diploma.diploma_number || '—' }}</span>
-              <span>Дата выпуска: {{ diploma.graduation_date || '—' }}</span>
+              <span>№ диплома: ****{{ diploma.diploma_number_last4 }}</span>
+              <span>Студент: ****{{ diploma.student_number_last4 }}</span>
+              <span>Дата выпуска: {{ diploma.graduation_date }}</span>
             </div>
           </div>
           <div class="diploma-status">
@@ -71,7 +74,7 @@
             <button 
               v-if="diploma.status === 'active'"
               class="btn-icon danger" 
-              @click="revokeDiploma(diploma.id)"
+              @click="revokeDiploma(diploma.diploma_id)"
               title="Аннулировать"
             >
               🔒
@@ -79,7 +82,7 @@
             <button 
               v-else
               class="btn-icon success" 
-              @click="restoreDiploma(diploma.id)"
+              @click="restoreDiploma(diploma.diploma_id)"
               title="Восстановить"
             >
               🔓
@@ -112,7 +115,7 @@
           </div>
           <div class="form-group">
             <label>Степень</label>
-            <input v-model="newDiploma.degree" placeholder="bachelor/master" />
+            <input v-model="newDiploma.degree" placeholder="bachelor" />
           </div>
           <div class="form-group">
             <label>Программа</label>
@@ -136,9 +139,15 @@
         <h2>Импорт дипломов из CSV</h2>
         <p class="hint">Формат: fio,student_number,year,specialnost,diploma_number</p>
         <input type="file" @change="handleFileUpload" accept=".csv,.xlsx" />
+        <div v-if="importing" class="loading">Импорт...</div>
         <div v-if="importResult" class="import-result">
           <div v-if="importResult.imported_count">✅ Импортировано: {{ importResult.imported_count }}</div>
           <div v-if="importResult.failed_count">❌ Ошибок: {{ importResult.failed_count }}</div>
+          <div v-if="importResult.errors" class="errors">
+            <div v-for="err in importResult.errors" :key="err.row_number">
+              Строка {{ err.row_number }}: {{ err.message }}
+            </div>
+          </div>
         </div>
         <div class="form-actions">
           <button @click="showImportModal = false">Закрыть</button>
@@ -151,11 +160,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@stores/auth'
+import { universityService } from '@services/universityService'
+import { useQuasar } from 'quasar'
 
+const $q = useQuasar()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
-// Состояние
 const diplomas = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
@@ -163,6 +174,7 @@ const stats = ref({ total: 0, active: 0, revoked: 0 })
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
 const creating = ref(false)
+const importing = ref(false)
 const importResult = ref(null)
 
 const newDiploma = ref({
@@ -170,114 +182,121 @@ const newDiploma = ref({
   student_number: '',
   student_birth_date: '',
   diploma_number: '',
-  degree: '',
+  degree: 'bachelor',
   program_name: '',
   graduation_date: ''
 })
 
-// Фильтрация
 const filteredDiplomas = computed(() => {
   if (!searchQuery.value) return diplomas.value
   const query = searchQuery.value.toLowerCase()
   return diplomas.value.filter(d => 
     d.student_full_name?.toLowerCase().includes(query) ||
-    d.diploma_number?.toLowerCase().includes(query)
+    d.diploma_number_last4?.includes(query)
   )
 })
 
-// Загрузка данных
 const loadDiplomas = async () => {
   loading.value = true
   try {
-    // TODO: Подключить API
-    // const response = await universityService.getDiplomas()
-    // diplomas.value = response
-    // stats.value = calculateStats(response)
+    const response = await universityService.getDiplomas()
+    diplomas.value = response.items || []
     
-    // Временные демо-данные
-    setTimeout(() => {
-      diplomas.value = [
-        { id: 1, student_full_name: 'Иван Петров', diploma_number: 'DP-2026-0001', graduation_date: '2026-06-30', status: 'active' },
-        { id: 2, student_full_name: 'Мария Сидорова', diploma_number: 'DP-2026-0002', graduation_date: '2026-06-30', status: 'active' }
-      ]
-      stats.value = { total: 2, active: 2, revoked: 0 }
-      loading.value = false
-    }, 500)
+    // Подсчёт статистики
+    stats.value.total = diplomas.value.length
+    stats.value.active = diplomas.value.filter(d => d.status === 'active').length
+    stats.value.revoked = diplomas.value.filter(d => d.status === 'revoked').length
   } catch (error) {
-    console.error(error)
+    $q.notify({ type: 'negative', message: 'Ошибка загрузки дипломов' })
+  } finally {
     loading.value = false
   }
 }
 
-// Создание диплома
 const createDiploma = async () => {
   creating.value = true
   try {
-    // TODO: Подключить API
-    // await universityService.createDiploma(newDiploma.value)
-    alert('Диплом создан (демо)')
+    await universityService.createDiploma(newDiploma.value)
+    $q.notify({ type: 'positive', message: 'Диплом создан!' })
     showCreateModal.value = false
     newDiploma.value = {
       student_full_name: '',
       student_number: '',
       student_birth_date: '',
       diploma_number: '',
-      degree: '',
+      degree: 'bachelor',
       program_name: '',
       graduation_date: ''
     }
     await loadDiplomas()
   } catch (error) {
-    alert('Ошибка создания: ' + error.message)
+    $q.notify({ type: 'negative', message: error.response?.data?.message || 'Ошибка создания' })
   } finally {
     creating.value = false
   }
 }
 
-// Импорт CSV
 const handleFileUpload = async (event) => {
   const file = event.target.files[0]
   if (!file) return
   
+  importing.value = true
+  importResult.value = null
+  
   try {
-    // TODO: Подключить API для импорта
-    // const formData = new FormData()
-    // formData.append('file', file)
-    // const response = await universityService.importDiplomas(formData)
-    // importResult.value = response
+    const formData = new FormData()
+    formData.append('file', file)
     
-    alert('Импорт выполнен (демо)')
-    importResult.value = { imported_count: 5, failed_count: 0 }
+    const response = await universityService.importDiplomas(formData, (progressEvent) => {
+      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+      console.log(`Upload progress: ${percent}%`)
+    })
+    
+    importResult.value = response
+    $q.notify({ 
+      type: response.failed_count === 0 ? 'positive' : 'warning', 
+      message: `Импортировано: ${response.imported_count}, Ошибок: ${response.failed_count}`
+    })
     await loadDiplomas()
   } catch (error) {
-    alert('Ошибка импорта: ' + error.message)
+    $q.notify({ type: 'negative', message: 'Ошибка импорта' })
+  } finally {
+    importing.value = false
   }
 }
 
-// Аннулирование
 const revokeDiploma = async (id) => {
-  if (confirm('Аннулировать диплом?')) {
+  $q.dialog({
+    title: 'Аннулирование диплома',
+    message: 'Вы уверены, что хотите аннулировать этот диплом?',
+    ok: 'Да, аннулировать',
+    cancel: 'Отмена'
+  }).onOk(async () => {
     try {
-      // await universityService.revokeDiploma(id)
-      alert('Диплом аннулирован (демо)')
+      await universityService.revokeDiploma(id)
+      $q.notify({ type: 'positive', message: 'Диплом аннулирован' })
       await loadDiplomas()
     } catch (error) {
-      alert('Ошибка: ' + error.message)
+      $q.notify({ type: 'negative', message: 'Ошибка' })
     }
-  }
+  })
 }
 
-// Восстановление
 const restoreDiploma = async (id) => {
-  if (confirm('Восстановить диплом?')) {
+  $q.dialog({
+    title: 'Восстановление диплома',
+    message: 'Вы уверены, что хотите восстановить этот диплом?',
+    ok: 'Да, восстановить',
+    cancel: 'Отмена'
+  }).onOk(async () => {
     try {
-      // await universityService.restoreDiploma(id)
-      alert('Диплом восстановлен (демо)')
+      await universityService.restoreDiploma(id)
+      $q.notify({ type: 'positive', message: 'Диплом восстановлен' })
       await loadDiplomas()
     } catch (error) {
-      alert('Ошибка: ' + error.message)
+      $q.notify({ type: 'negative', message: 'Ошибка' })
     }
-  }
+  })
 }
 
 onMounted(() => {
@@ -286,6 +305,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Стили остаются те же, что и раньше */
 .university-dashboard {
   max-width: 1200px;
   margin: 0 auto;
@@ -449,7 +469,6 @@ onMounted(() => {
   transform: scale(1.1);
 }
 
-/* Модальное окно */
 .modal {
   position: fixed;
   top: 0;
@@ -519,6 +538,20 @@ onMounted(() => {
   color: #666;
 }
 
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .hint {
   font-size: 12px;
   color: #666;
@@ -530,5 +563,11 @@ onMounted(() => {
   padding: 10px;
   background: #f0fff4;
   border-radius: 8px;
+}
+
+.errors {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #c33;
 }
 </style>

@@ -147,12 +147,11 @@
       <!-- Скан QR -->
       <div v-if="activeTab === 'scanner'" class="tab-content">
         <div class="scanner-card">
-          <div class="scanner-container">
-            <div id="qr-reader" class="qr-reader"></div>
-            <div v-if="scanning" class="scanning-overlay">
-              <div class="spinner"></div>
-              <p>Сканирование...</p>
-            </div>
+          <div id="qr-reader" class="qr-reader"></div>
+          
+          <div v-if="qrVerifying" class="scanning-overlay">
+            <div class="spinner"></div>
+            <p>Проверка диплома...</p>
           </div>
           
           <div v-if="qrResult" class="qr-result">
@@ -214,7 +213,10 @@
         <div class="history-card">
           <h2>📜 История проверок</h2>
           
-          <div v-if="historyLoading" class="loading">Загрузка...</div>
+          <div v-if="historyLoading" class="loading">
+            <div class="spinner"></div>
+            <p>Загрузка...</p>
+          </div>
           
           <div v-else-if="historyList.length === 0" class="empty-history">
             <p>История проверок пуста</p>
@@ -223,7 +225,7 @@
           <div v-else class="history-list">
             <div v-for="item in historyList" :key="item.id" class="history-item">
               <div class="history-icon">
-                {{ item.result === 'green' ? '✅' : '❌' }}
+                {{ item.verdict === 'green' ? '✅' : '❌' }}
               </div>
               <div class="history-details">
                 <div class="history-fio">{{ item.fio || 'Анонимная проверка' }}</div>
@@ -234,8 +236,8 @@
                 </div>
               </div>
               <div class="history-status">
-                <span :class="['badge', item.result]">
-                  {{ item.result === 'green' ? 'Подлинный' : 'Не подтверждён' }}
+                <span :class="['badge', item.verdict === 'green' ? 'green' : 'red']">
+                  {{ item.verdict === 'green' ? 'Подлинный' : 'Не подтверждён' }}
                 </span>
               </div>
             </div>
@@ -247,7 +249,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { hrService } from '@services/hrService'
 import { Html5Qrcode } from 'html5-qrcode'
@@ -266,7 +268,7 @@ const registrySearching = ref(false)
 const registrySearched = ref(false)
 
 // QR сканер
-const scanning = ref(false)
+const qrVerifying = ref(false)
 const qrResult = ref(null)
 let html5QrCode = null
 
@@ -342,6 +344,12 @@ const searchRegistry = async () => {
 
 // Инициализация QR сканера
 const initScanner = async () => {
+  if (html5QrCode) {
+    try {
+      await html5QrCode.stop()
+    } catch (e) {}
+  }
+  
   html5QrCode = new Html5Qrcode('qr-reader')
   
   try {
@@ -352,12 +360,13 @@ const initScanner = async () => {
       onScanError
     )
   } catch (err) {
-    $q.notify({ type: 'negative', message: 'Не удалось запустить камеру' })
+    console.error('Scanner error:', err)
+    $q.notify({ type: 'negative', message: 'Не удалось запустить камеру. Проверьте разрешения.' })
   }
 }
 
 const onScanSuccess = async (decodedText) => {
-  scanning.value = true
+  qrVerifying.value = true
   
   try {
     // Парсим токен из URL
@@ -366,7 +375,7 @@ const onScanSuccess = async (decodedText) => {
     // Запрашиваем ФИО
     const fio = await promptFIO()
     if (!fio) {
-      scanning.value = false
+      qrVerifying.value = false
       return
     }
     
@@ -376,15 +385,24 @@ const onScanSuccess = async (decodedText) => {
     
     if (result.found && result.status === 'active') {
       $q.notify({ type: 'positive', message: 'Диплом подтверждён!' })
+    } else if (result.found && result.status === 'revoked') {
+      $q.notify({ type: 'negative', message: 'Диплом аннулирован!' })
     } else {
-      $q.notify({ type: 'negative', message: 'Диплом не подтверждён' })
+      $q.notify({ type: 'warning', message: 'Диплом не найден' })
     }
     
+    // Обновляем историю
     loadHistory()
+    
+    // Через 3 секунды скрываем результат и готовимся к новому скану
+    setTimeout(() => {
+      qrResult.value = null
+    }, 3000)
   } catch (error) {
-    $q.notify({ type: 'negative', message: 'Ошибка проверки' })
+    console.error('Verification error:', error)
+    $q.notify({ type: 'negative', message: error.response?.data?.message || 'Ошибка проверки' })
   } finally {
-    scanning.value = false
+    qrVerifying.value = false
   }
 }
 
@@ -394,8 +412,12 @@ const onScanError = (error) => {
 
 const extractToken = (text) => {
   if (text.startsWith('http')) {
-    const url = new URL(text)
-    return url.searchParams.get('token')
+    try {
+      const url = new URL(text)
+      return url.searchParams.get('token')
+    } catch (e) {
+      return text
+    }
   }
   return text
 }
@@ -404,7 +426,7 @@ const promptFIO = () => {
   return new Promise((resolve) => {
     $q.dialog({
       title: 'Подтверждение личности',
-      message: 'Введите ФИО выпускника',
+      message: 'Введите ФИО выпускника для проверки',
       prompt: {
         model: '',
         type: 'text',
@@ -412,8 +434,11 @@ const promptFIO = () => {
       },
       ok: 'Проверить',
       cancel: 'Отмена'
-    }).onOk((data) => resolve(data))
-     .onCancel(() => resolve(null))
+    }).onOk((data) => {
+      resolve(data)
+    }).onCancel(() => {
+      resolve(null)
+    })
   })
 }
 
@@ -449,17 +474,13 @@ const formatDate = (date) => {
 }
 
 // Активация сканера при переключении таба
-const handleTabChange = () => {
-  if (activeTab.value === 'scanner') {
+watch(activeTab, (newVal) => {
+  if (newVal === 'scanner') {
     setTimeout(() => initScanner(), 100)
   } else if (html5QrCode && html5QrCode.isScanning) {
     html5QrCode.stop()
   }
-}
-
-// Следим за изменением таба
-import { watch } from 'vue'
-watch(activeTab, handleTabChange)
+})
 
 onMounted(() => {
   loadHistory()
@@ -755,6 +776,13 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
+.qr-result {
+  margin-top: 20px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .api-endpoint {
   background: #1a202c;
   padding: 15px;
@@ -822,6 +850,7 @@ onUnmounted(() => {
   gap: 15px;
   font-size: 12px;
   color: #666;
+  flex-wrap: wrap;
 }
 
 .badge {

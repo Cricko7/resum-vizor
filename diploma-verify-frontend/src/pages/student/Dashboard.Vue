@@ -15,7 +15,7 @@
       <!-- Поиск дипломов -->
       <div class="search-card">
         <h2>🔍 Найти мои дипломы</h2>
-        <p class="hint">Введите номер диплома или ФИО для поиска</p>
+        <p class="hint">Введите номер диплома или ФИО для поиска и автоматической привязки</p>
         
         <div class="search-form">
           <div class="search-group">
@@ -72,11 +72,11 @@
         </div>
       </div>
 
-      <!-- Мои дипломы -->
+      <!-- Мои дипломы (уже привязанные) -->
       <div v-if="myDiplomas.length > 0" class="my-diplomas-card">
         <h2>📜 Мои дипломы</h2>
         <div class="diplomas-grid">
-          <div v-for="diploma in myDiplomas" :key="diploma.id" class="diploma-card">
+          <div v-for="diploma in myDiplomas" :key="diploma.diploma_id" class="diploma-card">
             <div class="diploma-header">
               <span class="diploma-icon">🎓</span>
               <span class="diploma-status" :class="diploma.status">
@@ -114,7 +114,7 @@
           </div>
           
           <div class="qr-container">
-            <div ref="qrCodeRef" class="qr-code"></div>
+            <canvas ref="qrCanvasRef" class="qr-code"></canvas>
             <button @click="downloadQR" class="download-btn">⬇️ Скачать QR</button>
           </div>
           
@@ -122,6 +122,12 @@
             <button @click="showShareModal = false" class="close-btn">Закрыть</button>
           </div>
         </div>
+      </div>
+
+      <!-- Состояние загрузки -->
+      <div v-if="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
       </div>
     </div>
   </div>
@@ -155,40 +161,34 @@ const myDiplomas = ref([])
 const searchResults = ref([])
 const searching = ref(false)
 const searched = ref(false)
+const loading = ref(false)
 const showShareModal = ref(false)
 const shareUrl = ref('')
-const qrCodeRef = ref(null)
+const qrCanvasRef = ref(null)
 
 const searchQuery = ref({
   diploma_number: '',
   student_full_name: ''
 })
 
-// Загрузка моих дипломов
+// Загрузка моих дипломов (уже привязанных)
 const loadMyDiplomas = async () => {
+  loading.value = true
   try {
-    // TODO: API эндпоинт для получения дипломов студента
-    // const response = await studentService.getMyDiplomas()
-    // myDiplomas.value = response
-    
-    // Демо-данные
-    myDiplomas.value = [
-      {
-        id: 1,
-        diploma_id: '123e4567-e89b-12d3-a456-426614174000',
-        diploma_number_last4: '0001',
-        university_code: 'MSU-001',
-        graduation_date: '2024-06-30',
-        program_name: 'Прикладная информатика',
-        status: 'active'
-      }
-    ]
+    const response = await studentService.getMyDiplomas()
+    myDiplomas.value = response.items || []
   } catch (error) {
     console.error('Ошибка загрузки дипломов:', error)
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Ошибка загрузки дипломов'
+    })
+  } finally {
+    loading.value = false
   }
 }
 
-// Поиск дипломов
+// Поиск дипломов (с авто-привязкой)
 const searchDiplomas = async () => {
   if (!searchQuery.value.diploma_number && !searchQuery.value.student_full_name) {
     $q.notify({
@@ -216,8 +216,10 @@ const searchDiplomas = async () => {
     } else {
       $q.notify({
         type: 'positive',
-        message: `Найдено ${searchResults.value.length} диплом(ов)`
+        message: `Найдено ${searchResults.value.length} диплом(ов). Они автоматически привязаны к вашему аккаунту!`
       })
+      // Обновляем список моих дипломов после успешного поиска/привязки
+      await loadMyDiplomas()
     }
   } catch (error) {
     console.error('Ошибка поиска:', error)
@@ -235,12 +237,11 @@ const generateShareLink = async (diplomaId) => {
   try {
     const response = await studentService.generateShareLink(diplomaId)
     shareUrl.value = response.access_url
-    showShareModal.value = true
     
     // Генерируем QR-код
-    setTimeout(() => {
-      generateQRCode(shareUrl.value)
-    }, 100)
+    await generateQRCode(shareUrl.value)
+    
+    showShareModal.value = true
     
     $q.notify({
       type: 'positive',
@@ -257,10 +258,10 @@ const generateShareLink = async (diplomaId) => {
 
 // Генерация QR-кода
 const generateQRCode = async (url) => {
-  if (!qrCodeRef.value) return
+  if (!qrCanvasRef.value) return
   
   try {
-    await QRCode.toCanvas(qrCodeRef.value, url, {
+    await QRCode.toCanvas(qrCanvasRef.value, url, {
       width: 200,
       margin: 2,
       color: {
@@ -270,6 +271,10 @@ const generateQRCode = async (url) => {
     })
   } catch (error) {
     console.error('Ошибка генерации QR:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Ошибка генерации QR-кода'
+    })
   }
 }
 
@@ -278,13 +283,13 @@ const copyToClipboard = () => {
   navigator.clipboard.writeText(shareUrl.value)
   $q.notify({
     type: 'positive',
-    message: 'Ссылка скопирована!'
+    message: 'Ссылка скопирована в буфер обмена!'
   })
 }
 
 // Скачать QR-код
 const downloadQR = () => {
-  const canvas = qrCodeRef.value
+  const canvas = qrCanvasRef.value
   if (!canvas) return
   
   const link = document.createElement('a')
@@ -308,6 +313,7 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   padding: 30px 0;
+  position: relative;
 }
 
 .container {
@@ -624,6 +630,11 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.copy-btn:hover, .download-btn:hover {
+  transform: translateY(-2px);
 }
 
 .qr-container {
@@ -634,6 +645,9 @@ onMounted(() => {
 .qr-code {
   display: inline-block;
   margin-bottom: 15px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
 }
 
 .modal-actions {
@@ -646,5 +660,38 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.close-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

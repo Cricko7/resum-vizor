@@ -16,28 +16,13 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
-
-h1 {
-  font-size: 120px;
-  margin: 0;
-}
-
-p {
-  font-size: 24px;
-  margin: 20px 0;
-}
-
+h1 { font-size: 120px; margin: 0; }
+p { font-size: 24px; margin: 20px 0; }
 a {
   color: white;
   text-decoration: none;
   padding: 12px 24px;
   border: 2px solid white;
   border-radius: 8px;
-  transition: all 0.3s;
-}
-
-a:hover {
-  background: white;
-  color: #667eea;
 }
 </style>
