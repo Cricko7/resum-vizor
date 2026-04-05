@@ -1,130 +1,169 @@
 <template>
-  <div class="university-dashboard">
-    <div class="container">
-      <!-- Приветствие -->
-      <div class="welcome-card">
-        <div class="welcome-content">
-          <div class="avatar">{{ userInitials }}</div>
-          <div class="welcome-text">
-            <h1>Добро пожаловать, {{ user?.full_name }}!</h1>
-            <p>Управление дипломами вашего учебного заведения</p>
+  <div class="university-dashboard page-shell">
+    <div class="container university-dashboard__stack">
+      <section class="dashboard-hero glass-panel glass-panel--strong">
+        <div class="dashboard-hero__copy">
+          <div class="glass-pill">University issuance desk</div>
+          <h1>Реестр дипломов вашего вуза</h1>
+          <p>
+            Добавляйте единичные записи, загружайте массовые реестры и управляйте жизненным циклом
+            дипломов в одном защищенном контуре.
+          </p>
+        </div>
+
+        <div class="dashboard-hero__profile">
+          <div class="dashboard-avatar">{{ userInitials }}</div>
+          <div>
+            <strong>{{ user?.full_name }}</strong>
+            <span>{{ user?.university_code || 'Код вуза не указан' }}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Статистика (заглушка) -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">📜</div>
-          <div class="stat-number">—</div>
-          <div class="stat-label">Всего дипломов</div>
-        </div>
-        <div class="stat-card success">
-          <div class="stat-icon">✅</div>
-          <div class="stat-number">—</div>
-          <div class="stat-label">Активных</div>
-        </div>
-        <div class="stat-card danger">
-          <div class="stat-icon">⚠️</div>
-          <div class="stat-number">—</div>
-          <div class="stat-label">Аннулированных</div>
-        </div>
-      </div>
+      <section class="stats-grid data-grid data-grid--3">
+        <article class="stat-card glass-panel">
+          <span class="stat-card__label">Реестр</span>
+          <strong>—</strong>
+          <p>Всего дипломов</p>
+        </article>
+        <article class="stat-card glass-panel">
+          <span class="stat-card__label">Статус</span>
+          <strong>—</strong>
+          <p>Активные записи</p>
+        </article>
+        <article class="stat-card glass-panel">
+          <span class="stat-card__label">Control</span>
+          <strong>—</strong>
+          <p>Аннулированные записи</p>
+        </article>
+      </section>
 
-      <!-- Действия -->
-      <div class="actions-bar">
-        <button class="btn-primary" @click="showCreateModal = true">
-          + Добавить диплом
-        </button>
-        <button class="btn-secondary" @click="showImportModal = true">
-          📁 Импорт CSV
-        </button>
-      </div>
-
-      <!-- Информационная карточка -->
-      <div class="info-card">
-        <div class="info-icon">ℹ️</div>
-        <div class="info-text">
-          <strong>Как работают дипломы?</strong><br>
-          • Дипломы создаются и подписываются цифровой подписью ВУЗа<br>
-          • Студенты находят дипломы по ФИО и номеру студенческого<br>
-          • HR проверяет дипломы через портал проверки<br>
-          • Вы можете аннулировать или восстановить диплом по его ID
-        </div>
-      </div>
-
-      <!-- Модальное окно создания диплома -->
-      <div v-if="showCreateModal" class="modal" @click.self="showCreateModal = false">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2>➕ Добавить диплом</h2>
-            <button class="modal-close" @click="showCreateModal = false">✕</button>
+      <section class="actions-grid data-grid data-grid--2">
+        <article class="action-card glass-panel">
+          <div class="section-heading">
+            <h2>Одиночное добавление</h2>
+            <p>Создайте одну запись вручную, если нужно быстро выдать или исправить конкретный диплом.</p>
           </div>
-          <form @submit.prevent="createDiploma">
-            <div class="form-row">
-              <div class="form-group">
-                <label>ФИО студента *</label>
-                <input v-model="newDiploma.student_full_name" required />
-              </div>
-              <div class="form-group">
-                <label>Номер студенческого *</label>
-                <input v-model="newDiploma.student_number" required />
-              </div>
+          <button class="liquid-button" @click="showCreateModal = true">Добавить диплом</button>
+        </article>
+
+        <article class="action-card glass-panel">
+          <div class="section-heading">
+            <h2>Импорт реестра</h2>
+            <p>Загрузите CSV или XLSX с колонками fio, student_number, year, specialnost, diploma_number.</p>
+          </div>
+          <button class="liquid-button-secondary" @click="showImportModal = true">Открыть импорт</button>
+        </article>
+      </section>
+
+      <section class="info-card glass-panel">
+        <div class="section-heading">
+          <h2>Что делает платформа после загрузки</h2>
+        </div>
+        <div class="info-grid data-grid data-grid--2">
+          <div class="info-item">
+            <strong>Hash-first storage</strong>
+            <p>Исходные данные нормализуются и хранятся в платформе в хешированном виде.</p>
+          </div>
+          <div class="info-item">
+            <strong>Signature per university</strong>
+            <p>Каждая запись получает уникальный record hash и подпись, выведенную из секрета вашего вуза.</p>
+          </div>
+          <div class="info-item">
+            <strong>Student ownership</strong>
+            <p>Студент автоматически получает диплом в своем кабинете, если совпали ФИО и номер студбилета.</p>
+          </div>
+          <div class="info-item">
+            <strong>Lifecycle control</strong>
+            <p>Позже запись можно аннулировать или восстановить без удаления из реестра.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <transition name="fade">
+      <div v-if="showCreateModal" class="modal-shell" @click.self="showCreateModal = false">
+        <div class="modal-card glass-panel glass-panel--strong">
+          <div class="modal-head">
+            <div>
+              <div class="glass-pill">Single diploma</div>
+              <h2>Добавить диплом</h2>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Дата рождения *</label>
-                <input v-model="newDiploma.student_birth_date" type="date" required />
-              </div>
-              <div class="form-group">
-                <label>Номер диплома *</label>
-                <input v-model="newDiploma.diploma_number" required />
-              </div>
+            <button class="modal-close" @click="showCreateModal = false">Закрыть</button>
+          </div>
+
+          <form class="diploma-form" @submit.prevent="createDiploma">
+            <div class="form-grid">
+              <label class="form-field">
+                <span>ФИО студента</span>
+                <input v-model="newDiploma.student_full_name" class="glass-input" required />
+              </label>
+              <label class="form-field">
+                <span>Номер студенческого</span>
+                <input v-model="newDiploma.student_number" class="glass-input" required />
+              </label>
+              <label class="form-field">
+                <span>Дата рождения</span>
+                <input v-model="newDiploma.student_birth_date" type="date" class="glass-input" required />
+              </label>
+              <label class="form-field">
+                <span>Номер диплома</span>
+                <input v-model="newDiploma.diploma_number" class="glass-input" required />
+              </label>
+              <label class="form-field">
+                <span>Степень</span>
+                <input v-model="newDiploma.degree" class="glass-input" placeholder="bachelor" />
+              </label>
+              <label class="form-field">
+                <span>Программа</span>
+                <input v-model="newDiploma.program_name" class="glass-input" placeholder="Программная инженерия" />
+              </label>
+              <label class="form-field form-field--full">
+                <span>Дата выпуска</span>
+                <input v-model="newDiploma.graduation_date" type="date" class="glass-input" required />
+              </label>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Степень</label>
-                <input v-model="newDiploma.degree" placeholder="bachelor" />
-              </div>
-              <div class="form-group">
-                <label>Программа</label>
-                <input v-model="newDiploma.program_name" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Дата выпуска *</label>
-              <input v-model="newDiploma.graduation_date" type="date" required />
-            </div>
+
             <div class="modal-actions">
-              <button type="button" class="btn-cancel" @click="showCreateModal = false">Отмена</button>
-              <button type="submit" class="btn-submit" :disabled="creating">Создать</button>
+              <button type="button" class="liquid-button-secondary" @click="showCreateModal = false">Отмена</button>
+              <button type="submit" class="liquid-button" :disabled="creating">
+                {{ creating ? 'Создаем...' : 'Создать диплом' }}
+              </button>
             </div>
           </form>
         </div>
       </div>
+    </transition>
 
-      <!-- Модальное окно импорта CSV -->
-      <div v-if="showImportModal" class="modal" @click.self="showImportModal = false">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2>📂 Импорт дипломов из CSV</h2>
-            <button class="modal-close" @click="showImportModal = false">✕</button>
-          </div>
-          <div class="import-area">
-            <p class="hint">Формат: fio,student_number,year,specialnost,diploma_number</p>
-            <input type="file" @change="handleFileUpload" accept=".csv,.xlsx" />
-            <div v-if="importing" class="loading">Импорт...</div>
-            <div v-if="importResult" class="import-result">
-              <div v-if="importResult.imported_count">✅ Импортировано: {{ importResult.imported_count }}</div>
-              <div v-if="importResult.failed_count">❌ Ошибок: {{ importResult.failed_count }}</div>
+    <transition name="fade">
+      <div v-if="showImportModal" class="modal-shell" @click.self="showImportModal = false">
+        <div class="modal-card glass-panel glass-panel--strong">
+          <div class="modal-head">
+            <div>
+              <div class="glass-pill">Bulk import</div>
+              <h2>Импорт дипломов</h2>
             </div>
+            <button class="modal-close" @click="showImportModal = false">Закрыть</button>
           </div>
-          <div class="modal-actions">
-            <button class="btn-cancel" @click="showImportModal = false">Закрыть</button>
+
+          <div class="import-panel">
+            <p class="import-hint">Поддерживаются CSV и XLSX. Формат реестра: fio, student_number, year, specialnost, diploma_number.</p>
+            <input type="file" @change="handleFileUpload" accept=".csv,.xlsx" class="glass-input" />
+            <div v-if="importing" class="import-state">Импортируем записи...</div>
+            <div v-if="importResult" class="import-result">
+              <div>
+                <strong>{{ importResult.imported_count || 0 }}</strong>
+                <span>успешно импортировано</span>
+              </div>
+              <div>
+                <strong>{{ importResult.failed_count || 0 }}</strong>
+                <span>ошибок обработки</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
@@ -142,7 +181,7 @@ const userInitials = computed(() => {
   if (!user.value?.full_name) return '?'
   return user.value.full_name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
@@ -154,7 +193,7 @@ const creating = ref(false)
 const importing = ref(false)
 const importResult = ref(null)
 
-const newDiploma = ref({
+const createEmptyDiploma = () => ({
   student_full_name: '',
   student_number: '',
   student_birth_date: '',
@@ -164,29 +203,23 @@ const newDiploma = ref({
   graduation_date: ''
 })
 
+const newDiploma = ref(createEmptyDiploma())
+
 const createDiploma = async () => {
   creating.value = true
   try {
     const result = await universityService.createDiploma(newDiploma.value)
-    $q.notify({ 
-      type: 'positive', 
-      message: `✅ Диплом создан!`,
-      caption: `Record hash: ${result.record_hash?.slice(0, 20)}...`
+    $q.notify({
+      type: 'positive',
+      message: 'Диплом создан',
+      caption: result.record_hash ? `Record hash: ${result.record_hash.slice(0, 20)}...` : undefined
     })
     showCreateModal.value = false
-    newDiploma.value = {
-      student_full_name: '',
-      student_number: '',
-      student_birth_date: '',
-      diploma_number: '',
-      degree: 'bachelor',
-      program_name: '',
-      graduation_date: ''
-    }
+    newDiploma.value = createEmptyDiploma()
   } catch (error) {
-    $q.notify({ 
-      type: 'negative', 
-      message: error.response?.data?.message || 'Ошибка создания' 
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Ошибка создания диплома'
     })
   } finally {
     creating.value = false
@@ -194,306 +227,263 @@ const createDiploma = async () => {
 }
 
 const handleFileUpload = async (event) => {
-  const file = event.target.files[0]
+  const file = event.target.files?.[0]
   if (!file) return
-  
+
   importing.value = true
   importResult.value = null
-  
+
   try {
     const formData = new FormData()
     formData.append('file', file)
     const response = await universityService.importDiplomas(formData)
     importResult.value = response
-    $q.notify({ 
-      type: response.failed_count === 0 ? 'positive' : 'warning', 
-      message: `Импортировано: ${response.imported_count}, Ошибок: ${response.failed_count}`
+    $q.notify({
+      type: response.failed_count === 0 ? 'positive' : 'warning',
+      message: `Импортировано: ${response.imported_count}, ошибок: ${response.failed_count}`
     })
   } catch (error) {
-    $q.notify({ type: 'negative', message: 'Ошибка импорта' })
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Ошибка импорта'
+    })
   } finally {
     importing.value = false
+    event.target.value = ''
   }
 }
 </script>
 
 <style scoped>
-.university-dashboard {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
-  padding: 30px 0;
+.university-dashboard__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
+.dashboard-hero,
+.stat-card,
+.action-card,
+.info-card,
+.modal-card {
+  padding: 24px;
 }
 
-.welcome-card {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+.dashboard-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
 }
 
-.welcome-content {
+.dashboard-hero__copy {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.dashboard-hero__copy h1,
+.action-card h2,
+.info-card h2,
+.modal-head h2 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+}
+
+.dashboard-hero__copy h1 {
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.dashboard-hero__copy p,
+.action-card p,
+.info-item p,
+.import-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.dashboard-hero__profile {
+  min-width: 250px;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.46);
 }
 
-.avatar {
-  width: 70px;
-  height: 70px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
+.dashboard-hero__profile div:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-hero__profile span {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.dashboard-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  font-weight: bold;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
   color: white;
-}
-
-.welcome-text h1 {
-  margin: 0 0 5px;
-  color: #333;
-}
-
-.welcome-text p {
-  margin: 0;
-  color: #666;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-weight: 700;
+  box-shadow: 0 18px 28px rgba(37, 99, 235, 0.24);
 }
 
 .stat-card {
-  background: white;
-  border-radius: 20px;
-  padding: 20px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+  display: grid;
+  gap: 10px;
 }
 
-.stat-icon {
-  font-size: 32px;
-  margin-bottom: 10px;
+.stat-card__label {
+  color: var(--cyan);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.stat-number {
-  font-size: 32px;
-  font-weight: bold;
-  color: #a0aec0;
+.stat-card strong {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 2rem;
 }
 
-.stat-label {
-  color: #666;
-  margin-top: 5px;
+.stat-card p,
+.info-item p {
+  color: var(--ink-soft);
 }
 
-.actions-bar {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-}
-
-.btn-primary, .btn-secondary {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-secondary {
-  background: #e2e8f0;
-  color: #333;
-}
-
-.btn-primary:hover, .btn-secondary:hover {
-  transform: translateY(-2px);
-}
-
+.action-card,
 .info-card {
-  background: #e3f2fd;
+  display: grid;
+  gap: 18px;
+}
+
+.info-grid {
+  gap: 16px;
+}
+
+.info-item {
+  padding: 18px;
   border-radius: 20px;
-  padding: 25px;
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  display: grid;
+  gap: 8px;
 }
 
-.info-icon {
-  font-size: 32px;
-}
-
-.info-text {
-  color: #1565c0;
-  line-height: 1.6;
-}
-
-.modal {
+.modal-shell {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
+  inset: 0;
+  z-index: 220;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
 }
 
-.modal-content {
-  background: white;
-  border-radius: 24px;
-  width: 90%;
-  max-width: 550px;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 25px;
+.modal-card {
+  width: min(820px, 100%);
+  display: grid;
+  gap: 22px;
 }
 
-.modal-header {
+.modal-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: #333;
+  gap: 16px;
+  align-items: flex-start;
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
   cursor: pointer;
-  color: #999;
 }
 
-.modal-close:hover {
-  color: #333;
-}
-
-.form-row {
+.diploma-form,
+.import-panel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-bottom: 15px;
+  gap: 16px;
 }
 
-.form-group {
-  margin-bottom: 15px;
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
-  color: #333;
+.form-field {
+  display: grid;
+  gap: 8px;
 }
 
-.form-group input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 14px;
-  transition: all 0.3s;
+.form-field--full {
+  grid-column: 1 / -1;
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #667eea;
+.form-field span {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.btn-cancel {
-  padding: 10px 20px;
-  background: #e2e8f0;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.btn-submit {
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.import-area {
-  text-align: center;
-}
-
-.hint {
-  font-size: 12px;
-  color: #999;
-  margin-bottom: 15px;
-}
-
+.modal-actions,
 .import-result {
-  margin-top: 15px;
-  padding: 10px;
-  background: #f0fff4;
-  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.loading {
-  margin-top: 15px;
-  color: #666;
+.import-state {
+  color: var(--ink-soft);
 }
 
-@media (max-width: 768px) {
-  .welcome-content {
-    flex-direction: column;
-    text-align: center;
+.import-result div {
+  min-width: 180px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  display: grid;
+  gap: 4px;
+}
+
+.import-result strong {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.5rem;
+}
+
+@media (max-width: 960px) {
+  .dashboard-hero {
+    display: grid;
   }
 
-  .actions-bar {
-    flex-direction: column;
-  }
-
-  .btn-primary, .btn-secondary {
-    width: 100%;
-    text-align: center;
-  }
-
-  .form-row {
+  .form-grid {
     grid-template-columns: 1fr;
-    gap: 0;
   }
 
-  .info-card {
-    flex-direction: column;
-    text-align: center;
+  .form-field--full {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-actions,
+  .import-result,
+  .modal-head {
+    display: grid;
   }
 }
 </style>

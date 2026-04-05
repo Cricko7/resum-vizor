@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -66,8 +67,21 @@ func NewRouter(cfg config.Config, qrService *service.Service) http.Handler {
 			return
 		}
 
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			http.Error(w, "failed to read qr file", http.StatusInternalServerError)
+			return
+		}
+		if len(content) == 0 {
+			http.Error(w, "empty qr file", http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", qr.ContentTypeForFormat(record.Format))
-		http.ServeFile(w, r, filePath)
+		w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+		w.Header().Set("Cache-Control", "private, max-age=60")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content)
 	})
 
 	r.Delete("/api/v1/qr/{qr_id}", func(w http.ResponseWriter, r *http.Request) {

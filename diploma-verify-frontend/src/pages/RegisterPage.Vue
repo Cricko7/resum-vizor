@@ -1,130 +1,129 @@
 <template>
-  <div class="register-page">
-    <div class="register-container">
-      <div class="register-card">
-        <div class="logo">
-          <span class="icon">📝</span>
-          <h2>Регистрация</h2>
-          <p class="subtitle">Создайте аккаунт</p>
+  <div class="register-page page-shell">
+    <div class="container register-page__grid">
+      <section class="register-showcase glass-panel glass-panel--strong">
+        <div class="glass-pill">Role-based onboarding</div>
+        <h1>Создайте аккаунт под свой сценарий</h1>
+        <p>
+          Один интерфейс для трёх типов пользователей: вуз выпускает и подписывает дипломы,
+          студент подтверждает владение, HR автоматизирует проверку через API.
+        </p>
+
+        <div class="register-showcase__steps">
+          <div>
+            <strong>1. Выберите роль</strong>
+            <span>Поля формы адаптируются под рабочий процесс пользователя</span>
+          </div>
+          <div>
+            <strong>2. Заполните профиль</strong>
+            <span>Для студента важен номер студбилета, для вуза — код организации и его идентификатор</span>
+          </div>
+          <div>
+            <strong>3. Сразу переходите в работу</strong>
+            <span>После регистрации система авторизует и отправляет в нужный кабинет</span>
+          </div>
         </div>
-        
+      </section>
+
+      <section class="register-card glass-panel glass-panel--strong">
+        <div class="register-card__head">
+          <div>
+            <h2>Регистрация</h2>
+            <p>Создайте рабочий аккаунт в экосистеме Resume Vizor</p>
+          </div>
+        </div>
+
         <div class="role-tabs">
-          <button 
-            v-for="role in roles" 
+          <button
+            v-for="role in roles"
             :key="role.value"
-            :class="{ active: selectedRole === role.value }"
+            :class="['role-tab', { 'role-tab--active': selectedRole === role.value }]"
             @click="selectedRole = role.value"
             :disabled="loading"
+            type="button"
           >
             {{ role.label }}
           </button>
         </div>
-        
-        <form @submit.prevent="handleRegister">
-          <div class="form-group">
-            <input
-              type="email"
-              v-model="form.email"
-              placeholder="Email"
-              required
-              :disabled="loading"
-            />
-          </div>
-          
-          <div class="form-group">
-            <input
-              type="password"
-              v-model="form.password"
-              placeholder="Пароль (минимум 6 символов)"
-              required
-              :disabled="loading"
-            />
-          </div>
-          
-          <div class="form-group">
-            <input
-              type="text"
-              v-model="form.full_name"
-              placeholder="Полное имя"
-              required
-              :disabled="loading"
-            />
-          </div>
-          
-          <!-- Поля для студента -->
+
+        <form class="register-form" @submit.prevent="handleRegister">
+          <label class="register-field">
+            <span>Email</span>
+            <input type="email" v-model="form.email" required :disabled="loading" class="glass-input" placeholder="mail@example.com" />
+          </label>
+
+          <label class="register-field">
+            <span>Пароль</span>
+            <input type="password" v-model="form.password" required :disabled="loading" class="glass-input" placeholder="Минимум 6 символов" />
+          </label>
+
+          <label class="register-field">
+            <span>Полное имя</span>
+            <input type="text" v-model="form.full_name" required :disabled="loading" class="glass-input" placeholder="Иванов Иван Иванович" />
+          </label>
+
           <template v-if="selectedRole === 'student'">
-            <div class="form-group">
-              <input
-                type="text"
-                v-model="form.student_number"
-                placeholder="Номер студенческого билета"
-                required
-                :disabled="loading"
-              />
-            </div>
+            <label class="register-field">
+              <span>Номер студенческого билета</span>
+              <input type="text" v-model="form.student_number" required :disabled="loading" class="glass-input" placeholder="ST-2400188" />
+            </label>
           </template>
-          
-          <!-- Поля для ВУЗа -->
+
           <template v-if="selectedRole === 'university'">
-            <div class="form-group">
-              <input
-                type="text"
-                v-model="form.university_id"
-                placeholder="ID ВУЗа (оставьте пустым для автогенерации)"
-                :disabled="loading"
-              />
-              <div class="hint">Пример: 11111111-1111-1111-1111-111111111111</div>
-            </div>
-            
-            <div class="form-group">
-              <input
-                type="text"
-                v-model="form.university_code"
-                placeholder="Код ВУЗа *"
-                required
-                :disabled="loading"
-              />
-              <div class="hint">Пример: UNI-001</div>
-            </div>
+            <label class="register-field">
+              <span>University ID</span>
+              <input type="text" v-model="form.university_id" :disabled="loading" class="glass-input" placeholder="UUID вуза" />
+              <small>Если поле пустое, перед отправкой будет сгенерирован UUID на стороне клиента.</small>
+            </label>
+
+            <label class="register-field">
+              <span>Код вуза</span>
+              <input type="text" v-model="form.university_code" required :disabled="loading" class="glass-input" placeholder="UNI-001" />
+              <small>Именно по этому коду HR и ATS будут искать записи в реестре.</small>
+            </label>
           </template>
-          
-          <div v-if="error" class="error-message">
+
+          <div v-if="error" class="register-error">
             {{ error }}
           </div>
-          
-          <button type="submit" :disabled="loading">
-            {{ loading ? 'Регистрация...' : 'Зарегистрироваться' }}
+
+          <button type="submit" :disabled="loading" class="liquid-button register-submit">
+            {{ loading ? 'Создаем аккаунт...' : 'Зарегистрироваться' }}
           </button>
         </form>
-        
-        <p class="login-link">
-          Уже есть аккаунт? <a href="/login">Войти</a>
+
+        <p class="register-switch">
+          Уже есть аккаунт?
+          <router-link to="/login">Войти</router-link>
         </p>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Функция генерации UUID v4
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0
-    const v = c === 'x' ? r : (r & 0x3 | 0x8)
-    return v.toString(16)
+const createUniversityId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = char === 'x' ? random : (random & 0x3) | 0x8
+    return value.toString(16)
   })
 }
 
 const roles = [
   { value: 'student', label: 'Студент' },
-  { value: 'university', label: 'ВУЗ' },
+  { value: 'university', label: 'Вуз' },
   { value: 'hr', label: 'HR' }
 ]
 
@@ -140,40 +139,65 @@ const form = ref({
 const loading = ref(false)
 const error = ref('')
 
+watch(selectedRole, (role) => {
+  error.value = ''
+
+  if (role !== 'student') {
+    form.value.student_number = ''
+  }
+
+  if (role !== 'university') {
+    form.value.university_id = ''
+    form.value.university_code = ''
+    return
+  }
+
+  if (!form.value.university_id) {
+    form.value.university_id = createUniversityId()
+  }
+})
+
 const handleRegister = async () => {
   loading.value = true
   error.value = ''
-  
-  let registerData = {
-    email: form.value.email,
+
+  const registerData = {
+    email: form.value.email.trim(),
     password: form.value.password,
-    full_name: form.value.full_name,
+    full_name: form.value.full_name.trim(),
     role: selectedRole.value
   }
-  
+
   if (selectedRole.value === 'student') {
-    registerData.student_number = form.value.student_number
+    if (!form.value.student_number.trim()) {
+      error.value = 'Для студента нужен номер студенческого билета'
+      loading.value = false
+      return
+    }
+
+    registerData.student_number = form.value.student_number.trim()
     registerData.university_id = null
     registerData.university_code = null
-  } 
-  else if (selectedRole.value === 'university') {
-    // Автоматически генерируем UUID если не введён
-    registerData.university_id = form.value.university_id || generateUUID()
-    registerData.university_code = form.value.university_code
+  } else if (selectedRole.value === 'university') {
+    if (!form.value.university_code.trim()) {
+      error.value = 'Для вуза нужен код организации'
+      loading.value = false
+      return
+    }
+
+    registerData.university_id = (form.value.university_id || createUniversityId()).trim()
+    registerData.university_code = form.value.university_code.trim()
     registerData.student_number = null
-  } 
-  else if (selectedRole.value === 'hr') {
+  } else {
     registerData.university_id = null
     registerData.university_code = null
     registerData.student_number = null
   }
-  
-  console.log('📤 Отправка регистрации:', registerData)
-  
+
   const result = await authStore.register(registerData)
-  
+
   loading.value = false
-  
+
   if (result.success) {
     const role = result.user.role
     if (role === 'university') {
@@ -185,161 +209,140 @@ const handleRegister = async () => {
     }
   } else {
     error.value = result.error
-    console.error('❌ Ошибка регистрации:', result.error)
   }
 }
 </script>
 
 <style scoped>
-.register-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 40px 0;
+.register-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 0.95fr);
+  gap: 22px;
 }
 
-.register-container {
-  width: 100%;
-  max-width: 450px;
-  padding: 20px;
+.register-showcase,
+.register-card {
+  padding: clamp(24px, 4vw, 34px);
+}
+
+.register-showcase {
+  display: grid;
+  gap: 18px;
+  align-content: space-between;
+}
+
+.register-showcase h1,
+.register-card h2 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+}
+
+.register-showcase h1 {
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.register-showcase p,
+.register-card p,
+.register-field small {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.register-showcase__steps {
+  display: grid;
+  gap: 14px;
+}
+
+.register-showcase__steps div {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.46);
 }
 
 .register-card {
-  background: white;
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-}
-
-.logo {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-.icon {
-  display: inline-block;
-  width: 48px;
-  height: 48px;
-  line-height: 48px;
-  font-size: 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 50%;
-  margin-bottom: 10px;
-}
-
-h2 {
-  margin: 0;
-  color: #333;
-}
-
-.subtitle {
-  color: #666;
-  font-size: 14px;
-  margin-top: 5px;
+  display: grid;
+  gap: 22px;
 }
 
 .role-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 30px;
 }
 
-.role-tabs button {
-  flex: 1;
-  padding: 10px;
-  border: 2px solid #ddd;
-  background: white;
-  border-radius: 8px;
+.role-tab {
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.3);
+  color: var(--ink-soft);
   cursor: pointer;
-  transition: all 0.3s;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.role-tabs button.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.role-tab:hover {
+  transform: translateY(-1px);
+}
+
+.role-tab--active {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(37, 99, 235, 0.92));
   color: white;
-  border-color: transparent;
+  box-shadow: 0 16px 26px rgba(37, 99, 235, 0.18);
 }
 
-.role-tabs button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.register-form {
+  display: grid;
+  gap: 16px;
 }
 
-.form-group {
-  margin-bottom: 20px;
+.register-field {
+  display: grid;
+  gap: 8px;
 }
 
-.form-group input {
+.register-field span {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.register-field small {
+  font-size: 0.82rem;
+}
+
+.register-submit {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  box-sizing: border-box;
-  transition: border-color 0.3s;
+  margin-top: 4px;
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #667eea;
+.register-error {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(254, 226, 226, 0.72);
+  color: #991b1b;
+  border: 1px solid rgba(248, 113, 113, 0.28);
 }
 
-.form-group input:disabled {
-  background: #f5f5f5;
+.register-switch a {
+  color: var(--blue);
+  font-weight: 700;
 }
 
-.hint {
-  font-size: 12px;
-  color: #999;
-  margin-top: 5px;
+@media (max-width: 960px) {
+  .register-page__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-button[type="submit"] {
-  width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-button[type="submit"]:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-button[type="submit"]:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.error-message {
-  background: #fee;
-  color: #c33;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.login-link {
-  text-align: center;
-  margin-top: 20px;
-  color: #666;
-}
-
-.login-link a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.login-link a:hover {
-  text-decoration: underline;
+@media (max-width: 560px) {
+  .role-tabs {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

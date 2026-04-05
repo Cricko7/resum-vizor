@@ -2,15 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@stores/auth'
 
 // Импорты страниц (проверьте что пути правильные)
-import HomePage from '../pages/HomePage.vue'
-import LoginPage from '../pages/LoginPage.vue'
-import RegisterPage from '../pages/RegisterPage.vue'
-import NotFoundPage from '../pages/NotFoundPage.vue'
+import HomePage from '../pages/HomePage.Vue'
+import LoginPage from '../pages/LoginPage.Vue'
+import RegisterPage from '../pages/RegisterPage.Vue'
+import NotFoundPage from '../pages/NotFoundPage.Vue'
 
 // Защищённые страницы
-import UniversityDashboard from '../pages/university/Dashboard.vue'
-import StudentDashboard from '../pages/student/Dashboard.vue'
-import HRVerify from '../pages/hr/VerifyPage.vue'
+import UniversityDashboard from '../pages/university/Dashboard.Vue'
+import StudentDashboard from '../pages/student/Dashboard.Vue'
+import HRVerify from '../pages/hr/VerifyPage.Vue'
 
 const routes = [
   {

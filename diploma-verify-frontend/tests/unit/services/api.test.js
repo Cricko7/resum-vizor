@@ -23,8 +23,8 @@ describe('API Service', () => {
       expect(api.defaults.timeout).toBe(30000)
     })
 
-    it('has correct default headers', () => {
-      expect(api.defaults.headers['Content-Type']).toBe('application/json')
+    it('does not force JSON content-type globally', () => {
+      expect(api.defaults.headers['Content-Type']).toBeUndefined()
     })
   })
 

@@ -1,47 +1,78 @@
 <template>
-  <div class="login-page">
-    <div class="login-container">
-      <div class="login-card">
-        <div class="logo">
-          <span class="icon">✓</span>
-          <h2>Resume Vizor</h2>
-          <p class="subtitle">Вход в систему</p>
+  <div class="auth-page page-shell">
+    <div class="container auth-page__grid">
+      <section class="auth-showcase glass-panel glass-panel--strong">
+        <div class="glass-pill">Secure access layer</div>
+        <h1>Вход в экосистему Resume Vizor</h1>
+        <p>
+          Авторизация разделяет роли, хранит безопасные сессии и ведет пользователя
+          сразу в его рабочий сценарий: вуз, студент или HR.
+        </p>
+
+        <div class="auth-showcase__features">
+          <div>
+            <strong>JWT + role header</strong>
+            <span>Защищенные зоны для каждого сценария работы</span>
+          </div>
+          <div>
+            <strong>Hash-first platform</strong>
+            <span>Подлинность диплома проверяется без хранения raw-данных</span>
+          </div>
+          <div>
+            <strong>QR and ATS ready</strong>
+            <span>Студенческий QR и автоматизация для HR уже встроены</span>
+          </div>
         </div>
-        
-        <form @submit.prevent="handleLogin">
-          <div class="form-group">
+      </section>
+
+      <section class="auth-card glass-panel glass-panel--strong">
+        <div class="auth-card__head">
+          <div class="auth-card__mark">RV</div>
+          <div>
+            <h2>Вход</h2>
+            <p>Используйте email и пароль от вашего аккаунта</p>
+          </div>
+        </div>
+
+        <form class="auth-form" @submit.prevent="handleLogin">
+          <label class="auth-field">
+            <span>Email</span>
             <input
               type="email"
               v-model="email"
-              placeholder="Email"
+              placeholder="you@company.com"
               required
               :disabled="loading"
+              class="glass-input"
             />
-          </div>
-          
-          <div class="form-group">
+          </label>
+
+          <label class="auth-field">
+            <span>Пароль</span>
             <input
               type="password"
               v-model="password"
-              placeholder="Пароль"
+              placeholder="Введите пароль"
               required
               :disabled="loading"
+              class="glass-input"
             />
-          </div>
-          
-          <div v-if="error" class="error-message">
+          </label>
+
+          <div v-if="error" class="auth-error">
             {{ error }}
           </div>
-          
-          <button type="submit" :disabled="loading">
-            {{ loading ? 'Вход...' : 'Войти' }}
+
+          <button type="submit" :disabled="loading" class="liquid-button auth-submit">
+            {{ loading ? 'Входим...' : 'Войти в систему' }}
           </button>
         </form>
-        
-        <p class="register-link">
-          Нет аккаунта? <a href="/register">Зарегистрироваться</a>
+
+        <p class="auth-switch">
+          Нет аккаунта?
+          <router-link to="/register">Создать его</router-link>
         </p>
-      </div>
+      </section>
     </div>
   </div>
 </template>
@@ -62,13 +93,12 @@ const error = ref('')
 const handleLogin = async () => {
   loading.value = true
   error.value = ''
-  
+
   const result = await authStore.login(email.value, password.value)
-  
+
   loading.value = false
-  
+
   if (result.success) {
-    // Редирект в зависимости от роли
     const role = result.user.role
     if (role === 'university') {
       router.push('/university/dashboard')
@@ -86,121 +116,126 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-page {
-  min-height: 100vh;
+.auth-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.auth-showcase,
+.auth-card {
+  padding: clamp(24px, 4vw, 34px);
+}
+
+.auth-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.auth-showcase h1,
+.auth-card h2 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+}
+
+.auth-showcase h1 {
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.auth-showcase p,
+.auth-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.auth-showcase__features {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-showcase__features div {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.46);
+}
+
+.auth-card {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+
+.auth-card__head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.auth-card__mark {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.login-container {
-  width: 100%;
-  max-width: 400px;
-  padding: 20px;
-}
-
-.login-card {
-  background: white;
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-}
-
-.logo {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-.icon {
-  display: inline-block;
-  width: 48px;
-  height: 48px;
-  line-height: 48px;
-  font-size: 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--cyan), var(--blue));
   color: white;
-  border-radius: 50%;
-  margin-bottom: 10px;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  box-shadow: 0 14px 26px rgba(37, 99, 235, 0.24);
 }
 
-h2 {
-  margin: 0;
-  color: #333;
+.auth-form {
+  display: grid;
+  gap: 16px;
 }
 
-.subtitle {
-  color: #666;
-  font-size: 14px;
-  margin-top: 5px;
+.auth-field {
+  display: grid;
+  gap: 8px;
 }
 
-.form-group {
-  margin-bottom: 20px;
+.auth-field span {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
-input {
+.auth-submit {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  box-sizing: border-box;
-  transition: border-color 0.3s;
+  margin-top: 4px;
 }
 
-input:focus {
-  outline: none;
-  border-color: #667eea;
+.auth-error {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(254, 226, 226, 0.72);
+  color: #991b1b;
+  border: 1px solid rgba(248, 113, 113, 0.28);
 }
 
-input:disabled {
-  background: #f5f5f5;
+.auth-switch {
+  color: var(--ink-soft);
 }
 
-button {
-  width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: transform 0.2s;
+.auth-switch a {
+  color: var(--blue);
+  font-weight: 700;
 }
 
-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.error-message {
-  background: #fee;
-  color: #c33;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.register-link {
-  text-align: center;
-  margin-top: 20px;
-  color: #666;
-}
-
-.register-link a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.register-link a:hover {
-  text-decoration: underline;
+@media (max-width: 960px) {
+  .auth-page__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

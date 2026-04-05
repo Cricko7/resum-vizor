@@ -3,33 +3,35 @@ import api from './api'
 export const authService = {
   async register(data) {
     const payload = {
-      email: data.email,
+      email: data.email?.trim(),
       password: data.password,
-      full_name: data.full_name,
+      full_name: data.full_name?.trim(),
       role: data.role
     }
-    
+
     if (data.role === 'student') {
-      payload.student_number = data.student_number
+      payload.student_number = data.student_number?.trim() || null
       payload.university_id = null
       payload.university_code = null
     } else if (data.role === 'university') {
       payload.student_number = null
-      // Убеждаемся что university_id не null
-      payload.university_id = data.university_id || '00000000-0000-0000-0000-000000000000'
-      payload.university_code = data.university_code
-    } else if (data.role === 'hr') {
+      payload.university_id = data.university_id || null
+      payload.university_code = data.university_code?.trim() || null
+    } else {
       payload.student_number = null
       payload.university_id = null
       payload.university_code = null
     }
-    
+
     const response = await api.post('/api/v1/auth/register', payload)
     return response.data
   },
 
   async login(email, password) {
-    const response = await api.post('/api/v1/auth/login', { email, password })
+    const response = await api.post('/api/v1/auth/login', {
+      email: email?.trim(),
+      password
+    })
     return response.data
   },
 

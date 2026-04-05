@@ -1,109 +1,173 @@
 <template>
-  <div class="student-dashboard">
-    <div class="container">
-      <!-- Приветствие -->
-      <div class="welcome-card">
-        <div class="welcome-content">
-          <div class="avatar">{{ userInitials }}</div>
-          <div class="welcome-text">
-            <h1>Привет, {{ user?.full_name }}!</h1>
-            <p>Здесь вы можете найти и подтвердить свои дипломы</p>
+  <div class="student-dashboard page-shell">
+    <div class="container student-dashboard__stack">
+      <section class="student-hero glass-panel glass-panel--strong">
+        <div class="student-hero__main">
+          <div class="glass-pill">Student control center</div>
+          <h1>Ваши подтверждаемые дипломы</h1>
+          <p>
+            Найдите диплом по номеру или ФИО, проверьте его статус и подготовьте временный доступ
+            для работодателя через share-link и QR-код.
+          </p>
+        </div>
+
+        <div class="student-hero__meta">
+          <div class="student-avatar">{{ userInitials }}</div>
+          <div>
+            <strong>{{ user?.full_name }}</strong>
+            <span>{{ user?.email }}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Поиск дипломов -->
-      <div class="search-card">
-        <h2>🔍 Найти мои дипломы</h2>
-        <p class="hint">Введите номер диплома или ФИО для поиска и автоматической привязки</p>
-        
-        <div class="search-form">
-          <div class="search-group">
-            <input 
-              type="text" 
-              v-model="searchQuery.diploma_number" 
-              placeholder="Номер диплома"
-              class="search-input"
+      <section class="glass-panel search-panel">
+        <div class="section-heading">
+          <h2>Найти мои дипломы</h2>
+          <p>Поиск запускает и автоматическую привязку диплома к вашему аккаунту, если данные совпадают.</p>
+        </div>
+
+        <div class="search-grid">
+          <label class="search-field">
+            <span>Номер диплома</span>
+            <input
+              v-model="searchQuery.diploma_number"
+              type="text"
+              class="glass-input"
+              placeholder="DP-2024-8888"
             />
-          </div>
-          <div class="search-group">
-            <input 
-              type="text" 
-              v-model="searchQuery.student_full_name" 
-              placeholder="ФИО"
-              class="search-input"
+          </label>
+          <label class="search-field">
+            <span>ФИО</span>
+            <input
+              v-model="searchQuery.student_full_name"
+              type="text"
+              class="glass-input"
+              placeholder="Иванов Иван Иванович"
             />
-          </div>
-          <button @click="searchDiplomas" :disabled="searching" class="search-btn">
-            {{ searching ? 'Поиск...' : 'Найти' }}
+          </label>
+          <button @click="searchDiplomas" :disabled="searching" class="liquid-button search-grid__action">
+            {{ searching ? 'Ищем...' : 'Найти дипломы' }}
           </button>
         </div>
+      </section>
 
-        <!-- Результаты поиска -->
-        <div v-if="searchResults.length > 0" class="results">
-          <h3>Найденные дипломы</h3>
-          <div class="diplomas-list">
-            <div v-for="diploma in searchResults" :key="diploma.diploma_id" class="diploma-item">
-              <div class="diploma-info">
-                <div class="diploma-university">{{ diploma.university_code }}</div>
-                <div class="diploma-details">
-                  <span>Диплом: ****{{ diploma.diploma_number_last4 }}</span>
-                  <span>Дата выпуска: {{ diploma.graduation_date }}</span>
-                  <span :class="['status', diploma.status]">
-                    {{ diploma.status === 'active' ? '✓ Активен' : '✗ Аннулирован' }}
-                  </span>
-                </div>
-              </div>
-              <div class="diploma-actions">
-                <button 
-                  v-if="diploma.status === 'active'"
-                  class="btn-link" 
-                  @click="generateShareLink(diploma.diploma_id)"
-                >
-                  🔗 Получить ссылку
-                </button>
-              </div>
+      <section v-if="searchResults.length > 0" class="results-grid data-grid data-grid--2">
+        <article v-for="diploma in searchResults" :key="diploma.diploma_id" class="result-card glass-panel">
+          <div class="result-card__head">
+            <div>
+              <div class="result-card__code">{{ diploma.university_code }}</div>
+              <h3>Диплом ****{{ diploma.diploma_number_last4 }}</h3>
+            </div>
+            <span :class="['result-status', diploma.status]">
+              {{ diploma.status === 'active' ? 'Активен' : 'Аннулирован' }}
+            </span>
+          </div>
+
+          <div class="result-card__body">
+            <div class="result-line">
+              <span>Дата выпуска</span>
+              <strong>{{ diploma.graduation_date }}</strong>
+            </div>
+            <div class="result-line">
+              <span>Студбилет</span>
+              <strong>****{{ diploma.student_number_last4 || '—' }}</strong>
+            </div>
+            <div class="result-line">
+              <span>Certificate ID</span>
+              <strong>{{ diploma.certificate_id }}</strong>
             </div>
           </div>
-        </div>
 
-        <div v-else-if="searched && searchResults.length === 0" class="no-results">
-          <p>❌ Дипломы не найдены</p>
-          <p class="hint">Проверьте правильность введённых данных</p>
-        </div>
-      </div>
+          <div class="result-card__actions">
+            <button
+              v-if="diploma.status === 'active'"
+              class="liquid-button"
+              @click="openShareCenter(diploma.diploma_id)"
+            >
+              Поделиться дипломом
+            </button>
+          </div>
+        </article>
+      </section>
 
-      <!-- Модальное окно с ссылкой и QR -->
-      <div v-if="showShareModal" class="modal" @click.self="showShareModal = false">
-        <div class="modal-content share-modal">
-          <h2>🔗 Временная ссылка на диплом</h2>
-          <p class="hint">Ссылка действительна {{ ttlMinutes }} минут</p>
-          
-          <div class="share-url">
-            <input type="text" :value="shareUrl" readonly />
-            <button @click="copyToClipboard" class="copy-btn">📋 Копировать</button>
-          </div>
-          
-          <div class="qr-container">
-            <canvas ref="qrCanvasRef" class="qr-code"></canvas>
-            <button @click="downloadQR" class="download-btn">⬇️ Скачать QR</button>
-          </div>
-          
-          <div class="modal-actions">
-            <button @click="showShareModal = false" class="close-btn">Закрыть</button>
-          </div>
-        </div>
-      </div>
+      <section v-else-if="searched" class="glass-panel empty-state">
+        <h2>Совпадений не найдено</h2>
+        <p>Проверьте номер диплома или ФИО и попробуйте еще раз.</p>
+      </section>
     </div>
+
+    <transition name="fade">
+      <div v-if="showShareModal" class="share-modal" @click.self="closeShareModal">
+        <div class="share-modal__dialog glass-panel glass-panel--strong">
+          <div class="share-modal__head">
+            <div>
+              <div class="glass-pill">Share & QR</div>
+              <h2>Временный доступ к диплому</h2>
+              <p>Ссылка и QR подходят для безопасного показа работодателю.</p>
+            </div>
+            <button class="share-modal__close" @click="closeShareModal">Закрыть</button>
+          </div>
+
+          <div class="share-modal__grid">
+            <section class="share-block">
+              <h3>Share-link</h3>
+              <p class="share-block__hint">Ссылка живет {{ ttlMinutes }} минут и создается отдельно для студентского доступа.</p>
+              <div class="share-url-box">
+                <input class="glass-input" type="text" :value="shareUrl" readonly placeholder="Ссылка появится после генерации" />
+                <button class="liquid-button-secondary" :disabled="!shareUrl" @click="copyToClipboard">Скопировать</button>
+              </div>
+            </section>
+
+            <section class="share-block">
+              <div class="share-block__top">
+                <div>
+                  <h3>QR-код</h3>
+                  <p class="share-block__hint">QR генерируется на backend и отдается через ваш API.</p>
+                </div>
+                <span v-if="qrState" :class="['qr-status', qrState.status]">
+                  {{ qrStatusLabel(qrState.status) }}
+                </span>
+              </div>
+
+              <div class="qr-surface">
+                <div v-if="qrLoading && !qrImageUrl" class="qr-placeholder">
+                  Подготавливаем QR...
+                </div>
+                <div v-else-if="qrState?.status === 'pending'" class="qr-placeholder">
+                  QR еще собирается. Мы автоматически обновляем статус.
+                </div>
+                <div v-else-if="qrImageUrl" class="qr-image-wrap">
+                  <img :src="qrImageUrl" alt="QR code" class="qr-image" />
+                </div>
+                <div v-else-if="qrState?.error_message" class="qr-placeholder qr-placeholder--error">
+                  {{ qrState.error_message }}
+                </div>
+                <div v-else class="qr-placeholder">
+                  QR появится здесь после успешной генерации.
+                </div>
+              </div>
+
+              <div class="qr-actions">
+                <button class="liquid-button-secondary" @click="refreshQrStatus" :disabled="!currentDiplomaId || qrLoading">
+                  Обновить статус
+                </button>
+                <button class="liquid-button" @click="downloadQR" :disabled="!qrImageUrl">
+                  Скачать QR
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@stores/auth'
 import { studentService } from '@services/studentService'
 import { useQuasar } from 'quasar'
-import QRCode from 'qrcode'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
@@ -113,28 +177,59 @@ const userInitials = computed(() => {
   if (!user.value?.full_name) return '?'
   return user.value.full_name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 })
 
-const ttlMinutes = ref(30)
-
-// Состояние
 const searchResults = ref([])
 const searching = ref(false)
 const searched = ref(false)
 const showShareModal = ref(false)
 const shareUrl = ref('')
-const qrCanvasRef = ref(null)
-
+const ttlMinutes = ref(30)
+const currentDiplomaId = ref(null)
+const qrState = ref(null)
+const qrImageUrl = ref('')
+const qrBlobType = ref('image/png')
+const qrLoading = ref(false)
 const searchQuery = ref({
   diploma_number: '',
   student_full_name: ''
 })
 
-// Поиск дипломов
+let qrStatusTimer = null
+let qrPollAttempts = 0
+const QR_POLL_INTERVAL_MS = 2000
+const QR_MAX_POLL_ATTEMPTS = 30
+
+const clearQrTimer = () => {
+  if (qrStatusTimer) {
+    clearInterval(qrStatusTimer)
+    qrStatusTimer = null
+  }
+  qrPollAttempts = 0
+}
+
+const revokeQrUrl = () => {
+  if (qrImageUrl.value) {
+    URL.revokeObjectURL(qrImageUrl.value)
+    qrImageUrl.value = ''
+  }
+  qrBlobType.value = 'image/png'
+}
+
+const qrStatusLabel = (status) => {
+  const map = {
+    pending: 'В процессе',
+    ready: 'Готов',
+    failed: 'Ошибка',
+    expired: 'Истек'
+  }
+  return map[status] || status
+}
+
 const searchDiplomas = async () => {
   if (!searchQuery.value.diploma_number && !searchQuery.value.student_full_name) {
     $q.notify({
@@ -143,30 +238,24 @@ const searchDiplomas = async () => {
     })
     return
   }
-  
+
   searching.value = true
   searched.value = true
-  
+
   try {
     const response = await studentService.searchDiplomas(
       searchQuery.value.diploma_number,
       searchQuery.value.student_full_name
     )
     searchResults.value = response.items || []
-    
-    if (searchResults.value.length === 0) {
-      $q.notify({
-        type: 'info',
-        message: 'Дипломы не найдены'
-      })
-    } else {
-      $q.notify({
-        type: 'positive',
-        message: `Найдено ${searchResults.value.length} диплом(ов)`
-      })
-    }
+
+    $q.notify({
+      type: searchResults.value.length ? 'positive' : 'info',
+      message: searchResults.value.length
+        ? `Найдено ${searchResults.value.length} диплом(ов)`
+        : 'Дипломы не найдены'
+    })
   } catch (error) {
-    console.error('Ошибка поиска:', error)
     $q.notify({
       type: 'negative',
       message: error.response?.data?.message || 'Ошибка поиска'
@@ -176,376 +265,512 @@ const searchDiplomas = async () => {
   }
 }
 
-// Генерация ссылки
-const generateShareLink = async (diplomaId) => {
+const loadShareLink = async (diplomaId) => {
+  const response = await studentService.generateShareLink(diplomaId)
+  shareUrl.value = response.access_url || ''
+  ttlMinutes.value = Math.max(1, Math.round((response.expires_in_seconds || 1800) / 60))
+}
+
+const fetchQrImage = async (diplomaId) => {
   try {
-    const response = await studentService.generateShareLink(diplomaId)
-    shareUrl.value = response.access_url
-    
-    // Генерируем QR-код
-    await generateQRCode(shareUrl.value)
-    
-    showShareModal.value = true
-    
-    $q.notify({
-      type: 'positive',
-      message: 'Ссылка успешно создана!'
-    })
+    const blob = await studentService.getQRContent(diplomaId)
+    revokeQrUrl()
+    qrBlobType.value = blob.type || 'image/png'
+    qrImageUrl.value = URL.createObjectURL(blob)
   } catch (error) {
-    console.error('Ошибка генерации ссылки:', error)
-    $q.notify({
-      type: 'negative',
-      message: error.response?.data?.message || 'Ошибка генерации ссылки'
-    })
+    if (error.response?.status === 409) {
+      const nextState = await studentService.getQRStatus(diplomaId)
+      await syncQrState(nextState)
+    }
+
+    throw error
   }
 }
 
-// Генерация QR-кода
-const generateQRCode = async (url) => {
-  if (!qrCanvasRef.value) return
-  
-  try {
-    await QRCode.toCanvas(qrCanvasRef.value, url, {
-      width: 200,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#ffffff'
+const syncQrState = async (payload) => {
+  qrState.value = payload
+
+  if (payload?.status === 'pending' && currentDiplomaId.value && showShareModal.value) {
+    startQrPolling(currentDiplomaId.value)
+    return
+  }
+
+  if (payload?.status === 'ready' && currentDiplomaId.value) {
+    clearQrTimer()
+    try {
+      await fetchQrImage(currentDiplomaId.value)
+    } catch (error) {
+      if (error.response?.status !== 409) {
+        $q.notify({
+          type: 'negative',
+          message: error.response?.data?.message || 'QR готов, но изображение пока недоступно'
+        })
       }
+    }
+  }
+
+  if (payload?.status === 'failed' || payload?.status === 'expired') {
+    clearQrTimer()
+  }
+}
+
+const startQrPolling = (diplomaId) => {
+  if (qrStatusTimer || !showShareModal.value) {
+    return
+  }
+
+  clearQrTimer()
+
+  qrStatusTimer = setInterval(async () => {
+    qrPollAttempts += 1
+
+    if (qrPollAttempts > QR_MAX_POLL_ATTEMPTS) {
+      clearQrTimer()
+      $q.notify({
+        type: 'warning',
+        message: 'QR все еще не готов. Попробуйте обновить статус чуть позже.'
+      })
+      return
+    }
+
+    try {
+      const nextState = await studentService.getQRStatus(diplomaId)
+      await syncQrState(nextState)
+    } catch (error) {
+      clearQrTimer()
+      $q.notify({
+        type: 'negative',
+        message: error.response?.data?.message || 'Не удалось обновить статус QR'
+      })
+    }
+  }, QR_POLL_INTERVAL_MS)
+}
+
+const openShareCenter = async (diplomaId) => {
+  currentDiplomaId.value = diplomaId
+  showShareModal.value = true
+  qrLoading.value = true
+  qrState.value = null
+  shareUrl.value = ''
+  revokeQrUrl()
+  clearQrTimer()
+
+  const [linkResult, qrResult] = await Promise.allSettled([
+    loadShareLink(diplomaId),
+    studentService.generateQR(diplomaId)
+  ])
+
+  if (linkResult.status === 'rejected') {
+    $q.notify({
+      type: 'warning',
+      message: linkResult.reason?.response?.data?.message || 'Не удалось создать share-link'
     })
-  } catch (error) {
-    console.error('Ошибка генерации QR:', error)
+  }
+
+  if (qrResult.status === 'fulfilled') {
+    await syncQrState(qrResult.value)
+  } else {
     $q.notify({
       type: 'negative',
-      message: 'Ошибка генерации QR-кода'
+      message: qrResult.reason?.response?.data?.message || 'Не удалось подготовить QR'
+    })
+  }
+
+  qrLoading.value = false
+}
+
+const refreshQrStatus = async () => {
+  if (!currentDiplomaId.value) return
+
+  qrLoading.value = true
+  try {
+    const nextState = await studentService.getQRStatus(currentDiplomaId.value)
+    await syncQrState(nextState)
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Не удалось обновить статус QR'
+    })
+  } finally {
+    qrLoading.value = false
+  }
+}
+
+const copyToClipboard = async () => {
+  if (!shareUrl.value) return
+
+  await navigator.clipboard.writeText(shareUrl.value)
+  $q.notify({
+    type: 'positive',
+    message: 'Ссылка скопирована в буфер обмена'
+  })
+}
+
+const downloadQR = async () => {
+  if (!currentDiplomaId.value) return
+
+  try {
+    const blob = qrImageUrl.value ? null : await studentService.getQRContent(currentDiplomaId.value)
+    const url = qrImageUrl.value || URL.createObjectURL(blob)
+    const extension = qrState.value?.format === 'svg' || qrBlobType.value === 'image/svg+xml' ? 'svg' : 'png'
+    const link = document.createElement('a')
+    link.download = `resume-vizor-qr.${extension}`
+    link.href = url
+    link.click()
+
+    if (!qrImageUrl.value) {
+      URL.revokeObjectURL(url)
+    }
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: error.response?.data?.message || 'Не удалось скачать QR'
     })
   }
 }
 
-// Копирование ссылки
-const copyToClipboard = () => {
-  navigator.clipboard.writeText(shareUrl.value)
-  $q.notify({
-    type: 'positive',
-    message: 'Ссылка скопирована в буфер обмена!'
-  })
+const closeShareModal = () => {
+  showShareModal.value = false
+  currentDiplomaId.value = null
+  shareUrl.value = ''
+  qrState.value = null
+  qrLoading.value = false
+  clearQrTimer()
+  revokeQrUrl()
 }
 
-// Скачать QR-код
-const downloadQR = () => {
-  const canvas = qrCanvasRef.value
-  if (!canvas) return
-  
-  const link = document.createElement('a')
-  link.download = 'diploma-qr.png'
-  link.href = canvas.toDataURL()
-  link.click()
-  
-  $q.notify({
-    type: 'positive',
-    message: 'QR-код скачан!'
-  })
-}
+onBeforeUnmount(() => {
+  clearQrTimer()
+  revokeQrUrl()
+})
 </script>
 
 <style scoped>
-.student-dashboard {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 30px 0;
+.student-dashboard__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
+.student-hero,
+.search-panel,
+.result-card,
+.empty-state {
+  padding: 24px;
 }
 
-.welcome-card {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+.student-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
 }
 
-.welcome-content {
+.student-hero__main {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.student-hero__main h1,
+.search-panel h2,
+.result-card h3,
+.share-modal__head h2,
+.share-block h3,
+.empty-state h2 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+}
+
+.student-hero__main h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.student-hero__main p,
+.search-panel p,
+.empty-state p,
+.share-modal__head p,
+.share-block__hint {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.student-hero__meta {
+  min-width: 240px;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.46);
 }
 
-.avatar {
-  width: 70px;
-  height: 70px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
+.student-hero__meta div:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.student-hero__meta span {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.student-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  font-weight: bold;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: white;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
+  box-shadow: 0 18px 28px rgba(37, 99, 235, 0.24);
 }
 
-.welcome-text h1 {
-  margin: 0 0 5px 0;
-  color: #333;
+.search-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
 }
 
-.welcome-text p {
-  margin: 0;
-  color: #666;
+.search-field {
+  display: grid;
+  gap: 8px;
 }
 
-.search-card {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+.search-field span {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
-.search-card h2 {
-  margin: 0 0 10px 0;
-  color: #333;
-}
-
-.hint {
-  color: #666;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.search-form {
-  display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-}
-
-.search-group {
-  flex: 1;
+.search-grid__action {
   min-width: 200px;
 }
 
-.search-input {
-  width: 100%;
-  padding: 12px 15px;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 14px;
-  transition: all 0.3s;
+.results-grid {
+  align-items: start;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #667eea;
+.result-card {
+  display: grid;
+  gap: 18px;
 }
 
-.search-btn {
-  padding: 12px 30px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: transform 0.2s;
-}
-
-.search-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-.search-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.results {
-  margin-top: 30px;
-}
-
-.results h3 {
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.diplomas-list {
+.result-card__head {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
-.diploma-item {
+.result-card__code {
+  color: var(--cyan);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.result-card__body {
+  display: grid;
+  gap: 12px;
+}
+
+.result-line {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  transition: all 0.3s;
+  gap: 12px;
+  color: var(--ink-soft);
 }
 
-.diploma-item:hover {
-  background: #f0f2f5;
-  transform: translateX(5px);
+.result-line strong {
+  color: var(--ink);
 }
 
-.diploma-university {
-  font-weight: 600;
-  color: #667eea;
-  margin-bottom: 5px;
-}
-
-.diploma-details {
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: #666;
-}
-
-.status {
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 12px;
-}
-
-.status.active {
-  background: #c6f6d5;
-  color: #22543d;
-}
-
-.status.revoked {
-  background: #fed7d7;
-  color: #742a2a;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: #667eea;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.btn-link:hover {
-  background: #e2e8f0;
-}
-
-.no-results {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
+.result-status,
+.qr-status {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
-.modal-content {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 80vh;
-  overflow-y: auto;
+.result-status.active,
+.qr-status.ready {
+  background: rgba(187, 247, 208, 0.9);
+  color: #166534;
+}
+
+.result-status.revoked,
+.qr-status.failed,
+.qr-status.expired {
+  background: rgba(254, 226, 226, 0.88);
+  color: #991b1b;
+}
+
+.qr-status.pending {
+  background: rgba(254, 243, 199, 0.88);
+  color: #92400e;
+}
+
+.result-card__actions {
+  display: flex;
+}
+
+.empty-state {
+  text-align: center;
 }
 
 .share-modal {
-  text-align: center;
-}
-
-.share-url {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
   display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-modal__dialog {
+  width: min(1120px, 100%);
+  padding: 24px;
+  display: grid;
+  gap: 24px;
+}
+
+.share-modal__head {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.share-modal__close {
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+}
+
+.share-modal__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
+  gap: 18px;
+}
+
+.share-block {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+}
+
+.share-url-box {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 10px;
-  margin: 20px 0;
 }
 
-.share-url input {
-  flex: 1;
-  padding: 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 12px;
+.share-block__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-.copy-btn, .download-btn {
-  padding: 12px 20px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.2s;
+.qr-surface {
+  min-height: 320px;
+  border-radius: 28px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.44), transparent 62%),
+    rgba(236, 244, 251, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.copy-btn:hover, .download-btn:hover {
-  transform: translateY(-2px);
-}
-
-.qr-container {
+.qr-placeholder {
   text-align: center;
-  margin: 20px 0;
+  color: var(--ink-soft);
+  max-width: 280px;
+  line-height: 1.7;
 }
 
-.qr-code {
-  display: inline-block;
-  margin-bottom: 15px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 10px;
+.qr-placeholder--error {
+  color: #991b1b;
 }
 
-.modal-actions {
-  margin-top: 20px;
+.qr-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.close-btn {
-  padding: 10px 30px;
-  background: #e2e8f0;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.2s;
+.qr-image {
+  width: min(100%, 280px);
+  border-radius: 24px;
+  padding: 16px;
+  background: white;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
 }
 
-.close-btn:hover {
-  transform: translateY(-2px);
+.qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-@media (max-width: 768px) {
-  .welcome-content {
-    flex-direction: column;
-    text-align: center;
+@media (max-width: 960px) {
+  .student-hero,
+  .share-modal__grid,
+  .share-modal__head {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 
-  .search-form {
-    flex-direction: column;
+  .student-hero {
+    display: grid;
   }
 
-  .diploma-item {
-    flex-direction: column;
-    text-align: center;
-    gap: 15px;
+  .search-grid {
+    grid-template-columns: 1fr;
   }
 
-  .diploma-details {
-    flex-direction: column;
-    gap: 8px;
+  .search-grid__action,
+  .result-card__actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .result-card__head,
+  .result-line,
+  .share-url-box,
+  .share-block__top {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .result-status,
+  .qr-status {
+    justify-self: start;
   }
 }
 </style>

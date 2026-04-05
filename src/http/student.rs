@@ -222,6 +222,10 @@ pub async fn get_qr_content(
         header::CONTENT_TYPE,
         HeaderValue::from_str(&result.content_type).map_err(|_| AppError::Internal)?,
     );
+    headers.insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(&result.bytes.len().to_string()).map_err(|_| AppError::Internal)?,
+    );
 
     Ok((StatusCode::OK, headers, result.bytes).into_response())
 }

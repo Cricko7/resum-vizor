@@ -49,9 +49,13 @@ export const studentService = {
 
   async getQRContent(diplomaId) {
     const response = await api.get(`/api/v1/student/diplomas/${diplomaId}/qr/content`, {
-      responseType: 'blob'
+      responseType: 'arraybuffer',
+      headers: {
+        Accept: 'image/png,image/svg+xml,application/octet-stream'
+      }
     })
-    return response.data
+    const contentType = response.headers['content-type'] || 'image/png'
+    return new Blob([response.data], { type: contentType })
   },
 
   async deleteQR(diplomaId) {

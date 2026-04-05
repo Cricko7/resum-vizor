@@ -27,25 +27,23 @@ describe('Auth Store', () => {
     expect(store.isAuthenticated).toBe(false)
   })
 
-  // Пропускаем этот тест — он требует пересоздания store
   it.skip('loads token from localStorage on init', () => {
     localStorage.setItem('token', 'saved-token')
-    // Для полного теста нужно пересоздать store
     expect(localStorage.getItem('token')).toBe('saved-token')
   })
 
   it('computes role correctly', () => {
     const store = useAuthStore()
-    
+
     store.user = { role: 'student' }
     expect(store.isStudent).toBe(true)
     expect(store.isUniversity).toBe(false)
     expect(store.isHR).toBe(false)
-    
+
     store.user = { role: 'university' }
     expect(store.isStudent).toBe(false)
     expect(store.isUniversity).toBe(true)
-    
+
     store.user = { role: 'hr' }
     expect(store.isHR).toBe(true)
   })
@@ -56,10 +54,10 @@ describe('Auth Store', () => {
       user: { id: 1, email: 'test@example.com', role: 'student' }
     }
     authService.login.mockResolvedValue(mockResponse)
-    
+
     const store = useAuthStore()
     const result = await store.login('test@example.com', 'password123')
-    
+
     expect(result.success).toBe(true)
     expect(store.token).toBe('fake-token')
     expect(store.user).toEqual(mockResponse.user)
@@ -71,10 +69,10 @@ describe('Auth Store', () => {
     authService.login.mockRejectedValue({
       response: { data: { message: 'Invalid credentials' } }
     })
-    
+
     const store = useAuthStore()
     const result = await store.login('wrong@example.com', 'wrong')
-    
+
     expect(result.success).toBe(false)
     expect(result.error).toBe('Invalid credentials')
     expect(store.token).toBe(null)
@@ -85,20 +83,17 @@ describe('Auth Store', () => {
       access_token: 'fake-token',
       user: { id: 1, email: 'new@example.com', role: 'student' }
     }
-    // Правильно мокаем register для конкретной роли
-    authService.registerStudent = vi.fn().mockResolvedValue(mockResponse)
-    authService.registerUniversity = vi.fn()
-    authService.registerHR = vi.fn()
-    
+    authService.register.mockResolvedValue(mockResponse)
+
     const store = useAuthStore()
-    const result = await store.register({ 
-      email: 'new@example.com', 
-      password: 'pass123', 
+    const result = await store.register({
+      email: 'new@example.com',
+      password: 'pass123',
       role: 'student',
       full_name: 'Test User',
       student_number: 'ST-001'
     })
-    
+
     expect(result.success).toBe(true)
     expect(store.token).toBe('fake-token')
     expect(store.user).toEqual(mockResponse.user)
@@ -108,9 +103,9 @@ describe('Auth Store', () => {
     const store = useAuthStore()
     store.user = { id: 1, name: 'Test' }
     store.token = 'fake-token'
-    
+
     store.logout()
-    
+
     expect(store.user).toBe(null)
     expect(store.token).toBe(null)
     expect(localStorage.removeItem).toHaveBeenCalledWith('token')
@@ -121,24 +116,28 @@ describe('Auth Store', () => {
   it('fetchMe loads user data', async () => {
     const mockUser = { id: 1, email: 'test@example.com', full_name: 'Test User' }
     authService.getMe.mockResolvedValue(mockUser)
-    
+
     const store = useAuthStore()
     store.token = 'fake-token'
-    
+
     const user = await store.fetchMe()
-    
+
     expect(user).toEqual(mockUser)
     expect(store.user).toEqual(mockUser)
   })
 
-  it('fetchMe returns null and logs out on error', async () => {
-    authService.getMe.mockRejectedValue(new Error('Unauthorized'))
-    
+  it('fetchMe returns null and logs out on unauthorized error', async () => {
+    authService.getMe.mockRejectedValue({
+      response: {
+        status: 401
+      }
+    })
+
     const store = useAuthStore()
     store.token = 'fake-token'
-    
+
     const user = await store.fetchMe()
-    
+
     expect(user).toBe(null)
     expect(store.user).toBe(null)
     expect(store.token).toBe(null)

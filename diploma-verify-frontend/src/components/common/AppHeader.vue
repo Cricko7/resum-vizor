@@ -1,67 +1,70 @@
 <template>
   <header class="app-header">
     <div class="container">
-      <div class="header-content">
-        <div class="logo" @click="goToHome">
-          <span class="logo-icon">✓</span>
-          <span class="logo-text">Resume Vizor</span>
+      <div class="header-shell glass-panel glass-panel--strong">
+        <div class="brand" @click="goToHome">
+          <div class="brand-mark">
+            <span class="brand-mark__core"></span>
+          </div>
+          <div class="brand-copy">
+            <span class="brand-copy__title">Resume Vizor</span>
+            <span class="brand-copy__subtitle">Digital trust for diplomas</span>
+          </div>
         </div>
-        
+
         <nav class="nav-menu">
           <template v-if="!isAuthenticated">
             <router-link to="/" class="nav-link">Главная</router-link>
             <router-link to="/login" class="nav-link">Вход</router-link>
-            <router-link to="/register" class="nav-link">Регистрация</router-link>
+            <router-link to="/register" class="nav-link nav-link--accent">Регистрация</router-link>
           </template>
-          
+
           <template v-else>
-            <router-link 
-              v-if="isStudent" 
-              to="/student/dashboard" 
-              class="nav-link"
-            >
+            <router-link v-if="isStudent" to="/student/dashboard" class="nav-link">
               Мои дипломы
             </router-link>
-            <router-link 
-              v-if="isUniversity" 
-              to="/university/dashboard" 
-              class="nav-link"
-            >
-              Управление дипломами
+            <router-link v-if="isUniversity" to="/university/dashboard" class="nav-link">
+              Реестр вуза
             </router-link>
-            <router-link 
-              v-if="isHR" 
-              to="/hr/verify" 
-              class="nav-link"
-            >
-              Проверка дипломов
+            <router-link v-if="isHR" to="/hr/verify" class="nav-link">
+              Проверка HR
             </router-link>
-            
+
             <div class="user-menu">
-              <span class="user-name">{{ user?.full_name?.split(' ')[0] || 'Пользователь' }}</span>
-              <button @click="handleLogout" class="logout-btn">
-                <span class="logout-icon">🚪</span>
-                Выйти
-              </button>
+              <div class="user-chip">
+                <span class="user-chip__dot"></span>
+                <span>{{ user?.full_name?.split(' ')[0] || 'Пользователь' }}</span>
+              </div>
+              <button @click="handleLogout" class="logout-btn">Выйти</button>
             </div>
           </template>
         </nav>
-        
-        <button class="mobile-menu-btn" @click="toggleMobileMenu">☰</button>
-      </div>
-    </div>
-    
-    <!-- Мобильное меню -->
-    <div v-if="mobileMenuOpen" class="mobile-menu" @click="mobileMenuOpen = false">
-      <div class="mobile-menu-content">
-        <router-link v-for="link in mobileLinks" :key="link.path" :to="link.path" class="mobile-link">
-          {{ link.name }}
-        </router-link>
-        <button v-if="isAuthenticated" @click="handleLogout" class="mobile-logout-btn">
-          Выйти
+
+        <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Открыть меню">
+          <span></span>
+          <span></span>
         </button>
       </div>
     </div>
+
+    <transition name="fade">
+      <div v-if="mobileMenuOpen" class="mobile-menu" @click="mobileMenuOpen = false">
+        <div class="mobile-menu__content glass-panel glass-panel--strong" @click.stop>
+          <router-link
+            v-for="link in mobileLinks"
+            :key="link.path"
+            :to="link.path"
+            class="mobile-link"
+            @click="mobileMenuOpen = false"
+          >
+            {{ link.name }}
+          </router-link>
+          <button v-if="isAuthenticated" @click="handleLogout" class="mobile-logout-btn">
+            Выйти
+          </button>
+        </div>
+      </div>
+    </transition>
   </header>
 </template>
 
@@ -91,8 +94,8 @@ const mobileLinks = computed(() => {
     links.push({ path: '/register', name: 'Регистрация' })
   } else {
     if (isStudent.value) links.push({ path: '/student/dashboard', name: 'Мои дипломы' })
-    if (isUniversity.value) links.push({ path: '/university/dashboard', name: 'Управление дипломами' })
-    if (isHR.value) links.push({ path: '/hr/verify', name: 'Проверка дипломов' })
+    if (isUniversity.value) links.push({ path: '/university/dashboard', name: 'Реестр вуза' })
+    if (isHR.value) links.push({ path: '/hr/verify', name: 'Проверка HR' })
   }
   return links
 })
@@ -109,6 +112,7 @@ const handleLogout = () => {
     cancel: 'Отмена'
   }).onOk(() => {
     authStore.logout()
+    mobileMenuOpen.value = false
     $q.notify({
       type: 'positive',
       message: 'Вы успешно вышли из системы'
@@ -124,164 +128,222 @@ const toggleMobileMenu = () => {
 
 <style scoped>
 .app-header {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
-  top: 0;
+  top: 16px;
   z-index: 100;
+  padding-bottom: 12px;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-
-.header-content {
+.header-shell {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  height: 64px;
+  gap: 20px;
+  padding: 14px 18px;
+  border-radius: 24px;
 }
 
-.logo {
+.brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   cursor: pointer;
 }
 
-.logo-icon {
-  font-size: 28px;
-  font-weight: bold;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.brand-mark {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.18), rgba(15, 118, 110, 0.3));
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 12px 24px rgba(14, 165, 233, 0.16);
 }
 
-.logo-text {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
+.brand-mark__core {
+  position: absolute;
+  inset: 9px;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.86), transparent 32%),
+    linear-gradient(135deg, var(--cyan), var(--blue));
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-copy__title {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+}
+
+.brand-copy__subtitle {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
 }
 
 .nav-menu {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
 }
 
 .nav-link {
-  color: #555;
-  text-decoration: none;
-  font-size: 14px;
-  transition: color 0.3s;
+  padding: 10px 14px;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 0.94rem;
+  font-weight: 600;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .nav-link:hover {
-  color: #667eea;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.44);
+  transform: translateY(-1px);
 }
 
 .router-link-active {
-  color: #667eea;
-  font-weight: 500;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.nav-link--accent {
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--blue);
 }
 
 .user-menu {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-left: 16px;
+  gap: 12px;
+  margin-left: 8px;
   padding-left: 16px;
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
 }
 
-.user-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.44);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.user-chip__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--teal), var(--cyan));
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.4);
 }
 
 .logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: #e53e3e;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  color: #b91c1c;
   cursor: pointer;
-  font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  transition: all 0.3s;
+  font-size: 0.92rem;
+  font-weight: 700;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .logout-btn:hover {
-  background: #fff5f5;
+  transform: translateY(-1px);
+  background: rgba(254, 226, 226, 0.72);
 }
 
 .mobile-menu-btn {
   display: none;
-  background: none;
-  border: none;
-  font-size: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.42);
   cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mobile-menu-btn span {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ink);
 }
 
 .mobile-menu {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
   z-index: 200;
 }
 
-.mobile-menu-content {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 280px;
-  background: white;
-  padding: 20px;
+.mobile-menu__content {
+  width: min(320px, 100%);
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .mobile-link {
-  color: #333;
-  text-decoration: none;
-  font-size: 16px;
-  padding: 12px;
-  border-radius: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .mobile-link:hover {
-  background: #f5f5f5;
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .mobile-logout-btn {
   margin-top: auto;
-  padding: 12px;
-  background: #fee;
-  border: none;
-  border-radius: 8px;
-  color: #e53e3e;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(254, 226, 226, 0.72);
+  color: #b91c1c;
   cursor: pointer;
-  font-size: 16px;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {
   .nav-menu {
     display: none;
   }
-  
+
   .mobile-menu-btn {
-    display: block;
+    display: inline-flex;
+  }
+
+  .brand-copy__subtitle {
+    display: none;
+  }
+
+  .app-header {
+    top: 12px;
+  }
+
+  .header-shell {
+    padding: 12px 14px;
   }
 }
 </style>

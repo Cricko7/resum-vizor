@@ -630,6 +630,13 @@ async fn student_can_create_read_and_delete_qr_via_backend() {
         response.headers().get(header::CONTENT_TYPE).unwrap(),
         "image/png"
     );
+    assert_eq!(
+        response.headers().get(header::CONTENT_LENGTH).unwrap(),
+        "4"
+    );
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.len(), 4);
+    assert_eq!(&body[..], &[137, 80, 78, 71]);
 
     let (delete_status, delete_response) = send_request(
         &app,
@@ -742,6 +749,8 @@ async fn qr_content_is_cached_between_requests() {
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(&body[..], &[137, 80, 78, 71]);
     }
 
     assert_eq!(qr_gateway.content_requests.load(Ordering::SeqCst), 1);

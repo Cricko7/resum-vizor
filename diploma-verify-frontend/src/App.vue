@@ -1,7 +1,12 @@
 <template>
-  <div id="app">
-    <AppHeader />
-    <router-view />
+  <div id="app" class="app-shell">
+    <AuroraBackdrop />
+    <div class="app-shell__content">
+      <AppHeader />
+      <main class="app-shell__main">
+        <router-view />
+      </main>
+    </div>
   </div>
 </template>
 
@@ -9,6 +14,7 @@
 import { onMounted } from 'vue'
 import { useAuthStore } from '@stores/auth'
 import AppHeader from '@components/common/AppHeader.vue'
+import AuroraBackdrop from '@components/ui/AuroraBackdrop.vue'
 
 const authStore = useAuthStore()
 
@@ -19,10 +25,19 @@ onMounted(async () => {
 })
 </script>
 
-<style lang="scss">
-@import '@assets/styles/main.scss';
-
-#app {
+<style scoped>
+.app-shell {
+  position: relative;
   min-height: 100vh;
+}
+
+.app-shell__content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.app-shell__main {
+  position: relative;
 }
 </style>
