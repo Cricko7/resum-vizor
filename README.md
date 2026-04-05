@@ -21,6 +21,17 @@
 - HR и ATS могут проверять диплом через API, временную ссылку или QR-код
 - статус диплома можно аннулировать и восстановить
 
+<details>
+<summary>Скриншоты интерфейса</summary>
+
+<p>
+  <img src="screenshots/photo_2026-04-05_08-52-14.jpg" alt="Главный экран Resume Vizor" width="32%" />
+  <img src="screenshots/photo_2026-04-05_08-54-44.jpg" alt="Пользовательский сценарий Resume Vizor" width="32%" />
+  <img src="screenshots/photo_2026-04-05_09-09-47.jpg" alt="Рабочий экран Resume Vizor" width="32%" />
+</p>
+
+</details>
+
 Платформа позволяет:
 
 - вузу загружать дипломы по одному или массово через `CSV/XLSX`
