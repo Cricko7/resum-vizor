@@ -438,7 +438,45 @@ docker compose down
 docker compose down -v
 ```
 
-### 8.2 Что делает Docker Compose
+### 8.2 Полный запуск всего проекта: backend + frontend + infra
+
+Чтобы поднять весь проект целиком локально, используйте два `docker compose`:
+
+1. В корне репозитория поднимите backend и инфраструктуру:
+
+```powershell
+docker compose up --build
+```
+
+2. Во втором терминале поднимите frontend:
+
+```powershell
+cd diploma-verify-frontend
+docker compose up --build
+```
+
+Важно:
+
+- сначала нужно поднять корневой `docker compose`, потому что frontend подключается к внешней Docker-сети `resume-vizor-network`
+- frontend опубликован на `http://localhost:3001`, чтобы не конфликтовать с Grafana на `http://localhost:3000`
+
+После полного запуска будут доступны:
+
+- frontend: `http://localhost:3001`
+- backend API: `http://localhost:8080`
+- Swagger UI: `http://localhost:8080/swagger-ui`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+- QR service: `http://localhost:8090`
+
+Остановка frontend:
+
+```powershell
+cd diploma-verify-frontend
+docker compose down
+```
+
+### 8.3 Что делает Docker Compose
 
 - поднимает PostgreSQL 16
 - поднимает Redis 7 для distributed rate limiting и response caching
@@ -454,7 +492,7 @@ docker compose down -v
 - поднимает Prometheus с готовым scrape config
 - поднимает Grafana с заранее настроенным datasource и dashboard
 
-### 8.3 Настройка secrets для Docker
+### 8.4 Настройка secrets для Docker
 
 Перед production-использованием обязательно поменяйте значения:
 
