@@ -148,7 +148,22 @@
 
           <div class="import-panel">
             <p class="import-hint">Поддерживаются CSV и XLSX. Формат реестра: fio, student_number, year, specialnost, diploma_number.</p>
-            <input type="file" @change="handleFileUpload" accept=".csv,.xlsx" class="glass-input" />
+            <div class="file-upload">
+              <input
+                id="registry-file-input"
+                type="file"
+                accept=".csv,.xlsx"
+                class="file-upload__input"
+                :disabled="importing"
+                @change="handleFileUpload"
+              />
+              <label for="registry-file-input" class="file-upload__trigger liquid-button-secondary" :class="{ 'file-upload__trigger--disabled': importing }">
+                {{ importing ? 'Импортируем...' : 'Выбрать файл' }}
+              </label>
+              <span class="file-upload__name">
+                {{ selectedImportFileName || 'Файл еще не выбран' }}
+              </span>
+            </div>
             <div v-if="importing" class="import-state">Импортируем записи...</div>
             <div v-if="importResult" class="import-result">
               <div>
@@ -192,6 +207,7 @@ const showImportModal = ref(false)
 const creating = ref(false)
 const importing = ref(false)
 const importResult = ref(null)
+const selectedImportFileName = ref('')
 
 const createEmptyDiploma = () => ({
   student_full_name: '',
@@ -230,6 +246,7 @@ const handleFileUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
 
+  selectedImportFileName.value = file.name
   importing.value = true
   importResult.value = null
 
@@ -416,6 +433,33 @@ const handleFileUpload = async (event) => {
 .import-panel {
   display: grid;
   gap: 16px;
+}
+
+.file-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.file-upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.file-upload__trigger {
+  width: fit-content;
+}
+
+.file-upload__trigger--disabled {
+  pointer-events: none;
+}
+
+.file-upload__name {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .form-grid {
