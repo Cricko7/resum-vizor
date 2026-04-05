@@ -133,17 +133,18 @@
           <button class="liquid-button" :disabled="qrChecking" @click="verifyQrAccess()">
             {{ qrChecking ? 'Проверяем...' : 'Проверить QR' }}
           </button>
-          <button v-if="scannerSupported && !scannerActive" class="liquid-button-secondary" @click="startScanner">
+          <button v-if="mobileCameraEnabled && scannerSupported && !scannerActive" class="liquid-button-secondary" @click="startScanner">
             Запустить камеру
           </button>
-          <button v-if="scannerActive" class="liquid-button-secondary" @click="stopScanner()">
+          <button v-if="mobileCameraEnabled && scannerActive" class="liquid-button-secondary" @click="stopScanner()">
             Остановить камеру
           </button>
         </div>
 
-        <div v-if="scannerSupported" class="scanner-stage">
+        <div v-if="mobileCameraEnabled && scannerSupported" class="scanner-stage">
           <div id="qr-reader" class="scanner-stage__reader" :class="{ 'scanner-stage__reader--active': scannerActive }"></div>
         </div>
+        <div v-else class="scanner-desktop-note">Сканирование камерой скрыто на ПК. Для проверки вставьте QR-ссылку или access token вручную.</div>
         <div v-if="scannerError" class="scanner-error">{{ scannerError }}</div>
 
         <div v-if="qrResult" class="verification-card" :class="qrResult.status === 'active' ? 'verification-card--success' : 'verification-card--error'">
@@ -297,6 +298,7 @@ const qrResult = ref(null)
 const scannerActive = ref(false)
 const scannerError = ref('')
 const scannerSupported = ref(typeof window !== 'undefined' && !!navigator?.mediaDevices)
+const mobileCameraEnabled = ref(false)
 const apiKeys = ref([])
 const apiKeysLoading = ref(false)
 const apiKeyCreating = ref(false)
@@ -308,6 +310,22 @@ const scopes = INTEGRATION_SCOPES
 const selectedScopeDescription = computed(() => scopes.find((item) => item.value === apiKeyForm.value.scope)?.description || '')
 
 let qrScannerInstance = null
+let mediaQueryList = null
+
+const updateCameraUiMode = async () => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    mobileCameraEnabled.value = false
+    return
+  }
+
+  const compactViewport = window.matchMedia('(max-width: 900px)').matches
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+  mobileCameraEnabled.value = compactViewport || coarsePointer
+
+  if (!mobileCameraEnabled.value) {
+    await stopScanner(true)
+  }
+}
 
 const restoreHistory = () => {
   try {
@@ -407,6 +425,10 @@ const verifyQrAccess = async (sourceValue = qrInput.value) => {
 }
 
 const startScanner = async () => {
+  if (!mobileCameraEnabled.value) {
+    return
+  }
+
   scannerError.value = ''
   try {
     const { Html5Qrcode } = await import('html5-qrcode')
@@ -495,9 +517,26 @@ watch(activeTab, async (tab) => {
 
 onMounted(() => {
   activityHistory.value = restoreHistory()
+  updateCameraUiMode()
+
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    mediaQueryList = window.matchMedia('(max-width: 900px)')
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', updateCameraUiMode)
+    } else if (typeof mediaQueryList.addListener === 'function') {
+      mediaQueryList.addListener(updateCameraUiMode)
+    }
+  }
 })
 
 onBeforeUnmount(async () => {
+  if (mediaQueryList) {
+    if (typeof mediaQueryList.removeEventListener === 'function') {
+      mediaQueryList.removeEventListener('change', updateCameraUiMode)
+    } else if (typeof mediaQueryList.removeListener === 'function') {
+      mediaQueryList.removeListener(updateCameraUiMode)
+    }
+  }
   await stopScanner()
 })
 </script>
@@ -533,8 +572,9 @@ onBeforeUnmount(async () => {
 .registry-status.active, .history-verdict.green { background: rgba(187, 247, 208, 0.88); color: #166534; }
 .registry-status.revoked, .history-verdict.red { background: rgba(254, 226, 226, 0.88); color: #991b1b; }
 .history-verdict.yellow { background: rgba(254, 243, 199, 0.88); color: #92400e; }
-.registry-empty, .history-empty, .scanner-error { padding: 20px; border-radius: 20px; background: rgba(255, 255, 255, 0.28); }
+.registry-empty, .history-empty, .scanner-error, .scanner-desktop-note { padding: 20px; border-radius: 20px; background: rgba(255, 255, 255, 0.28); }
 .scanner-error { color: #991b1b; }
+.scanner-desktop-note { color: var(--ink-soft); line-height: 1.7; }
 .scanner-stage { padding: 10px; border-radius: 28px; background: rgba(255, 255, 255, 0.28); }
 .scanner-stage__reader { min-height: 320px; border-radius: 22px; background: rgba(236, 244, 251, 0.9); overflow: hidden; }
 .scanner-stage__reader--active { box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.18); }
